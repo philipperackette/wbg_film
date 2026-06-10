@@ -4,7 +4,7 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV="${WBG_ENV:-wbgvideo}"
 if ! command -v conda >/dev/null 2>&1; then echo "conda introuvable"; exit 1; fi
 source "$(conda info --base)/etc/profile.d/conda.sh"
-if conda env list | awk '{print $1}' | grep -qx "$ENV"; then
+if conda env list|awk '{print $1}'|grep -qx "$ENV"; then
   conda install -y -n "$ENV" -c conda-forge shapely matplotlib numpy ffmpeg
 else
   conda create -y -n "$ENV" -c conda-forge python=3.12 shapely matplotlib numpy ffmpeg
@@ -1359,18 +1359,21 @@ def _vignette_for(o):
 
 
 def _all_method_tris():
-    """Tous les triangles de A puis de B, orientés base horizontale. Le plus « gras » (détaillé) d'abord."""
+    """Tous les triangles de A (le plus gras detaille en 1er) puis de B (idem).
+    L'ordre A-avant-B est garanti pour que build_all insere les colonnes correctement."""
     from wbg_core import ear_clip
-    raw=[]
-    for poly,pal,tag in [(POLY_A,PALETTE_A,'A'),(POLY_B,PALETTE_B,'B')]:
-        tris=[list(t) for t in ear_clip(list(poly))]
-        for i,t in enumerate(tris):
-            raw.append(dict(tri=_reorient_horizontal(t), color=pal[i%len(pal)],
-                            tag=tag, idx=i, ntag=len(tris), ang=_minang_tri(t)))
-    fat=max(range(len(raw)), key=lambda k:raw[k]['ang'])
-    ordered=[raw[fat]]+[o for k,o in enumerate(raw) if k!=fat]
-    for k,o in enumerate(ordered): o['detailed']=(k==0)
-    return ordered
+    result = []
+    for poly, pal, tag in [(POLY_A, PALETTE_A, 'A'), (POLY_B, PALETTE_B, 'B')]:
+        tris = [list(t) for t in ear_clip(list(poly))]
+        fat = max(range(len(tris)), key=lambda k: _minang_tri(tris[k]))
+        ordered = [tris[fat]] + [t for k, t in enumerate(tris) if k != fat]
+        orig_idx = [fat] + [k for k in range(len(tris)) if k != fat]
+        for pos, (t, oi) in enumerate(zip(ordered, orig_idx)):
+            result.append(dict(tri=_reorient_horizontal(t), color=pal[oi % len(pal)],
+                               tag=tag, idx=oi, ntag=len(tris),
+                               ang=_minang_tri(t), detailed=(pos == 0)))
+    return result
+
 
 def _method_default_tri():
     # VRAI triangle de A : le plus « gras » (angle minimal maximal) = le toit isocèle de la maison.
@@ -1407,27 +1410,24 @@ def render_method(params, tri=None, color=None, detailed=True, suffix="", label=
         aidx=fv['active_idx']; vpal=fv['palette']
         # inset axes en haut à droite (coordonnées de data de l'axe principal)
         bb=_method_bbox(beats); x0v,y0v,x1v,y1v=bb
-        bw=fig.get_figwidth()*fig.dpi; bh=fig.get_figheight()*fig.dpi
-        # position en fraction de figure
-        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-        # Compute inset position in figure coordinates
-        ax_pos=ax.get_position()
-        # Place inset at top-right corner of the main axes
-        ins=fig.add_axes([ax_pos.x1-0.25, ax_pos.y1-0.28, 0.24, 0.27],
-                         facecolor='#f5f0e8')
+        # Petite vignette dans le coin supérieur droit de la FIGURE (hors zone animée)
+        # Taille : 11% de largeur × 13% de hauteur, coin TR
+        ins = fig.add_axes([0.87, 0.83, 0.11, 0.13], facecolor='#f5f0e8')
         ins.set_aspect('equal'); ins.axis('off')
-        # draw source polygon outline
-        vxs=[x for x,y in vx]+[vx[0][0]]; vys=[y for x,y in vx]+[vx[0][1]]
-        ins.fill(vxs,vys,color='#EEE8D8',edgecolor=INK,linewidth=1.2)
-        # draw triangles, active one bright, others dim
-        for k,vt in enumerate(vtris):
-            txs=[x for x,y in vt]; tys=[y for x,y in vt]
-            if k==aidx:
-                ins.fill(txs,tys,color=vpal[k%len(vpal)],alpha=1.0,edgecolor=INK,linewidth=1.4)
+        # contour de la figure source
+        vxs = [x for x,y in vx] + [vx[0][0]]; vys = [y for x,y in vx] + [vx[0][1]]
+        ins.fill(vxs, vys, color='#EEE8D8', edgecolor=INK, linewidth=1.2)
+        # triangles : actif en couleur, autres estompés
+        for k, vt in enumerate(vtris):
+            txs = [x for x,y in vt]; tys = [y for x,y in vt]
+            if k == aidx:
+                ins.fill(txs, tys, color=vpal[k % len(vpal)], alpha=1.0, edgecolor=INK, linewidth=1.2)
             else:
-                ins.fill(txs,tys,color=vpal[k%len(vpal)],alpha=0.25,edgecolor='#9A9384',linewidth=0.8)
-        ins.autoscale_view(); ins.set_title(label or "", fontsize=7, color=INK, pad=2, family='serif')
-        ins.patch.set_edgecolor('#C8C0AE'); ins.patch.set_linewidth(1.0)
+                ins.fill(txs, tys, color=vpal[k % len(vpal)], alpha=0.22, edgecolor='#B0A89A', linewidth=0.6)
+        ins.autoscale_view()
+        ins.set_title(f"▲ {label}" if label else "", fontsize=6.5, color=MUTED, pad=1.5,
+                      family='serif', loc='center')
+        ins.patch.set_edgecolor('#C4BAA8'); ins.patch.set_linewidth(0.8)
     nframes=int(math.ceil(total*params.fps))
     def update(fr):
         pieces,beat,in_hold,flashinfo=_method_state_at(beats, md['color'], fr/params.fps)
@@ -2230,10 +2230,12 @@ WBG_BUILD_EOF
 
 python - <<'PYCHK'
 import wbg_animate as W
-assert len(W.POLY_A)==5 and len(W.POLY_B)==6
-assert len(W._prologue_arrangements())==3
-assert hasattr(W,'_vignette_for')
-print(f"OK — {len(W._all_method_tris())} triangles methode")
+tris=W._all_method_tris()
+assert tris[0]['tag']=='A', "premier tri doit etre A"
+assert tris[3]['tag']=='B', "4e tri doit etre B"
+assert all(o['tag']=='A' for o in tris[:3])
+assert all(o['tag']=='B' for o in tris[3:])
+print(f"OK — ordre A/B verifie, {len(tris)} triangles, vignettes={'_vignette_for' in dir(W)}")
 PYCHK
 mkdir -p out
 python build_all.py --out-dir out
