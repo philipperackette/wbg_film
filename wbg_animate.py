@@ -1113,37 +1113,39 @@ def render_intro(params):
     plt.close(fig); return outs,total,sc
 
 def _prologue_arrangements():
-    """5 triangles qui forment 3 polygones connexes différents (même aire = 5).
-    Pièces : 4 triangles rectangles (base 2, hauteur 1) + 1 isocèle (base 2, hauteur 1).
-    Configs : maison (pentagone), parallélogramme, forme en L."""
-    # Les 5 pièces dans chaque configuration — coordonnées entières/demi-entières
-    house = [          # pentagone « maison »
-        [(0,0),(2,0),(0,1)],
-        [(2,0),(2,1),(0,1)],
-        [(0,1),(2,1),(0,2)],
-        [(2,1),(2,2),(0,2)],
-        [(0,2),(2,2),(1,3)],
+    """5 triangles isocèles congruents (base 2, hauteur 1, aire 1 chacun) formant
+    3 polygones connexes clairement différents : maison, losange/trapèze, flèche."""
+    # Les 5 pièces numérotées dans chaque configuration.
+    # Maison : corps carré 2×2 (4 triangles sur les diagonales) + toit isocèle
+    house = [
+        [(0,0),(2,0),(1,1)],   # 1 bas
+        [(2,0),(2,2),(1,1)],   # 2 droite
+        [(2,2),(0,2),(1,1)],   # 3 haut
+        [(0,2),(0,0),(1,1)],   # 4 gauche
+        [(0,2),(2,2),(1,3)],   # 5 toit
     ]
-    para = [           # parallélogramme
-        [(0,0),(2,0),(0,1)],
-        [(2,0),(2,1),(0,1)],
-        [(1,1),(3,1),(1,2)],
-        [(3,1),(3,2),(1,2)],
-        [(1,2),(3,2),(2,3)],
+    # Trapèze : rangée alternée haut/bas (5 triangles en zigzag)
+    trapeze = [
+        [(0,0),(2,0),(1,1)],   # 1 pointe haut
+        [(1,1),(3,1),(2,0)],   # 2 pointe bas
+        [(2,0),(4,0),(3,1)],   # 3 pointe haut
+        [(3,1),(5,1),(4,0)],   # 4 pointe bas
+        [(4,0),(6,0),(5,1)],   # 5 pointe haut
     ]
-    Lsh = [            # forme en L
-        [(0,0),(2,0),(0,1)],
-        [(2,0),(2,1),(0,1)],
-        [(0,1),(0,3),(1,1)],
-        [(0,3),(1,3),(1,1)],
-        [(1,1),(1,3),(2,2)],
+    # Flèche : pentagone pointant à droite (carré 2×2 + pointe droite)
+    arrow = [
+        [(0,0),(2,0),(1,1)],   # 1 bas
+        [(0,2),(2,2),(1,1)],   # 2 haut (inversé)
+        [(0,0),(0,2),(1,1)],   # 3 gauche
+        [(2,0),(2,2),(1,1)],   # 4 centre
+        [(2,0),(2,2),(3,1)],   # 5 pointe droite
     ]
     def center(tris):
-        pts=[p for t in tris for p in t]
-        cx=sum(x for x,y in pts)/len(pts)
-        cy=sum(y for x,y in pts)/len(pts)
+        pts = [p for t in tris for p in t]
+        cx = sum(x for x,y in pts)/len(pts)
+        cy = sum(y for x,y in pts)/len(pts)
         return [[(x-cx, y-cy) for x,y in t] for t in tris]
-    return [center(house), center(para), center(Lsh)]
+    return [center(house), center(trapeze), center(arrow)]
 
 def render_prologue(params):
     """Sens facile : on réarrange les MÊMES morceaux en plusieurs polygones ; l'aire ne change pas."""
