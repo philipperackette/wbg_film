@@ -397,7 +397,7 @@ CUTMARK='#5f5848'  # couleur stable des marques de découpe
 def _fr(x): return f"{x:.2f}".replace('.',',')
 
 def method_beats(md, params, detailed=True, label="", intro=None):
-    color=md['color']; p=md['p']; q=md['q']; h=md['h']; frac=f"{p}/{q}"
+    color=md['color']; p=md['p']; q=md['q']; h=md['h']; frac=(str(p) if q==1 else f"{p}/{q}")
     pts=md['pts']
     blen=max(math.hypot(pts[i][0]-pts[(i+1)%3][0], pts[i][1]-pts[(i+1)%3][1]) for i in range(3))
     rs=getattr(params,'read_scale',1.0)
@@ -599,21 +599,23 @@ def _method_draw(ax, patches, annot, msg_a, phase_a, flash, beat, pieces, in_hol
                 (a0,b0),(a1,b1)=sgt; X+=[a0,a1,float('nan')]; Y+=[b0,b1,float('nan')]
             flash.set_data(X,Y); flash.set_alpha(0.9*alpha)
         else: flash.set_alpha(0.0)
-    # fraction label on the cut segment, visible during the entire hold phase
+    phase_a.set_text(beat.get('title','')); msg_a.set_text(beat.get('msg',''))
+    _draw_annot(ax, annot, beat, pieces, in_hold)
+    # Fraction sur la coupe : visible DÈS l'apparition du trait (tracé + maintien),
+    # dessinée APRÈS _draw_annot pour ne pas être effacée par son store.clear().
     flab=beat.get('frac_label')
-    if flab and in_hold:
+    if flab:
         segs=beat.get('segs') or []
         for sgt in segs:
             if not sgt: continue
             (a0,b0),(a1,b1)=sgt
-            # draw a persistent cut line + label
-            annot.append(ax.plot([a0,a1],[b0,b1],color=ACCENT,lw=1.8,alpha=0.7)[0])
-            annot.append(ax.text((a0+a1)/2+0.20, (b0+b1)/2, flab,
-                                  ha='left', va='center', fontsize=14,
-                                  color=ACCENT, family='serif', weight='bold'))
+            annot.append(ax.plot([a0,a1],[b0,b1],color=ACCENT,lw=2.4,alpha=0.92,
+                                 solid_capstyle='round',zorder=6)[0])
+            mx,my=(a0+a1)/2,(b0+b1)/2
+            annot.append(ax.text(mx+0.18, my, "= "+flab, ha='left', va='center',
+                                  fontsize=15, color=ACCENT, family='serif',
+                                  weight='bold', zorder=7))
             break
-    phase_a.set_text(beat.get('title','')); msg_a.set_text(beat.get('msg',''))
-    _draw_annot(ax, annot, beat, pieces, in_hold)
 
 def _method_timeline(beats, params):
     for b in beats:
