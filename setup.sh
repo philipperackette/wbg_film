@@ -1346,6 +1346,18 @@ def _minang_tri(t):
         a.append(math.acos(max(-1,min(1,d))))
     return min(a)
 
+def _vignette_for(o):
+    """Construit le dict fig_vignette pour render_method à partir d'un entrée de _all_method_tris."""
+    from wbg_core import ear_clip
+    tag=o['tag']; idx=o['idx']
+    poly=POLY_A if tag=='A' else POLY_B
+    pal=PALETTE_A if tag=='A' else PALETTE_B
+    tris_raw=[list(t) for t in ear_clip(list(poly))]
+    poly_xy=[(p.x,p.y) for p in poly]
+    tris_xy=[[(p.x,p.y) for p in t] for t in tris_raw]
+    return dict(poly=poly_xy, tris=tris_xy, active_idx=idx, palette=pal)
+
+
 def _all_method_tris():
     """Tous les triangles de A puis de B, orientés base horizontale. Le plus « gras » (détaillé) d'abord."""
     from wbg_core import ear_clip
@@ -1376,7 +1388,10 @@ def _method_default_tri():
     return _reorient_horizontal(max(tris, key=_minang))
 
 def render_method(params, tri=None, color=None, detailed=True, suffix="", label="",
-                  max_den=2, intro=None):
+                  max_den=2, intro=None, fig_vignette=None):
+    """fig_vignette : dict(poly=[(x,y)…], tris=[[(x,y)…]…], active_idx=int, palette=[str…])
+    Si fourni, dessine une petite vignette en haut à droite de la figure source avec
+    le triangle actif mis en valeur."""
     os.makedirs(params.out_dir, exist_ok=True)
     if tri is None: tri=_method_default_tri()
     md=build_method(tri, color or PALETTE_A[0], max_den=max_den)
@@ -1386,6 +1401,33 @@ def render_method(params, tri=None, color=None, detailed=True, suffix="", label=
     msg=fig.text(0.5,0.075,"",ha='center',va='center',fontsize=13.0,color=INK,family='serif',
                  linespacing=1.5, bbox=dict(boxstyle='round,pad=0.6', fc='#fbf7ec', ec='#ddd6c4', alpha=0.92))
     patches=[]; annot=[]; flash=Line2D([],[],color=ACCENT,lw=2.6,alpha=0.0,solid_capstyle='round'); ax.add_line(flash)
+    # ── vignette : figure source avec triangle actif mis en valeur ──
+    if fig_vignette is not None:
+        fv=fig_vignette; vx=fv['poly']; vtris=fv['tris']
+        aidx=fv['active_idx']; vpal=fv['palette']
+        # inset axes en haut à droite (coordonnées de data de l'axe principal)
+        bb=_method_bbox(beats); x0v,y0v,x1v,y1v=bb
+        bw=fig.get_figwidth()*fig.dpi; bh=fig.get_figheight()*fig.dpi
+        # position en fraction de figure
+        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+        # Compute inset position in figure coordinates
+        ax_pos=ax.get_position()
+        # Place inset at top-right corner of the main axes
+        ins=fig.add_axes([ax_pos.x1-0.25, ax_pos.y1-0.28, 0.24, 0.27],
+                         facecolor='#f5f0e8')
+        ins.set_aspect('equal'); ins.axis('off')
+        # draw source polygon outline
+        vxs=[x for x,y in vx]+[vx[0][0]]; vys=[y for x,y in vx]+[vx[0][1]]
+        ins.fill(vxs,vys,color='#EEE8D8',edgecolor=INK,linewidth=1.2)
+        # draw triangles, active one bright, others dim
+        for k,vt in enumerate(vtris):
+            txs=[x for x,y in vt]; tys=[y for x,y in vt]
+            if k==aidx:
+                ins.fill(txs,tys,color=vpal[k%len(vpal)],alpha=1.0,edgecolor=INK,linewidth=1.4)
+            else:
+                ins.fill(txs,tys,color=vpal[k%len(vpal)],alpha=0.25,edgecolor='#9A9384',linewidth=0.8)
+        ins.autoscale_view(); ins.set_title(label or "", fontsize=7, color=INK, pad=2, family='serif')
+        ins.patch.set_edgecolor('#C8C0AE'); ins.patch.set_linewidth(1.0)
     nframes=int(math.ceil(total*params.fps))
     def update(fr):
         pieces,beat,in_hold,flashinfo=_method_state_at(beats, md['color'], fr/params.fps)
@@ -1443,7 +1485,9 @@ def build_column_scene(params, poly=None, palette=None):
     return dict(n=n, H=H, groups=groups, cutsegs=cutsegs, tray_dx=tray_dx, col_dx=col_dx,
                 colx=colx, tray_w=tray_w, total_h=sum(H))
 
-def render_column(params, poly=None, palette=None, scene_title="Empiler les rectangles unité → la colonne 1 × aire"):
+def render_column(params, poly=None, palette=None,
+                  scene_title="Empiler les rectangles unité → la colonne 1 × aire",
+                  suffix=""):
     os.makedirs(params.out_dir, exist_ok=True)
     sc=build_column_scene(params, poly, palette); n=sc['n']
     durs=[]
@@ -1494,10 +1538,10 @@ def render_column(params, poly=None, palette=None, scene_title="Empiler les rect
     anim=FuncAnimation(fig,update,frames=nframes,interval=1000/params.fps,blit=False)
     outs=[]
     if params.make_mp4:
-        path=os.path.join(params.out_dir,f"{params.basename}_colonne.mp4")
+        path=os.path.join(params.out_dir,f"{params.basename}_colonne{suffix}.mp4")
         anim.save(path,writer=FFMpegWriter(fps=params.fps,bitrate=2600),dpi=params.dpi); outs.append(path)
     if params.make_gif:
-        path=os.path.join(params.out_dir,f"{params.basename}_colonne.gif")
+        path=os.path.join(params.out_dir,f"{params.basename}_colonne{suffix}.gif")
         anim.save(path,writer=PillowWriter(fps=params.gif_fps),dpi=max(60,params.dpi-30)); outs.append(path)
     plt.close(fig); return outs,total
 
@@ -1836,7 +1880,7 @@ def render_prologue(params):
     ts = []; t = 0.0
     for nm,du,a,b in seq: ts.append((nm,t,du,a,b)); t += du
     total = t
-    bbox = (-2.2,-2.0,2.2,2.0)
+    bbox = (-3.8,-2.8,3.8,2.8)
     fig,ax,phase = _setup_fig_simple(bbox, params,
         "Le sens facile : réarranger des pièces ne change pas l'aire",
         mx=0.2, my_top=0.6, my_bot=0.6)
@@ -1848,7 +1892,7 @@ def render_prologue(params):
     for p in patches: ax.add_patch(p)
     nums = [ax.text(0,0,str(i+1),ha='center',va='center',fontsize=11,color=INK,family='serif')
             for i in range(5)]
-    areatag = ax.text(0,-1.85,"aire = 5 (5 triangles)",ha='center',va='top',
+    areatag = ax.text(0,-2.55,"aire = 5 (5 triangles)",ha='center',va='top',
                       fontsize=12.5,color=ACCENT,family='serif',weight='bold')
     TXT = {
         'h0': ("Le sens facile", "On part de quelques pièces qui forment un polygone."),
@@ -2073,13 +2117,25 @@ def render_all(params):
     outs, total, _ = W.render_intro(params); done("intro", outs, total)
 
     print("— méthode : tous les triangles de A puis de B (le plus gras en détail)", flush=True)
+    tris_by_tag = {'A': [], 'B': []}
     for k, o in enumerate(W._all_method_tris()):
-        lab = f"Triangle {o['idx']+1} de {o['tag']}"
-        outs, total, _ = W.render_method(params, tri=o["tri"], color=o["color"],
-                                         detailed=o["detailed"], suffix=f"_{k}",
-                                         label=lab)
-        done(f"methode_{k} ({lab}{' — détaillé' if o['detailed'] else ''})",
-             outs, total)
+        tris_by_tag[o['tag']].append((k, o))
+    for tag in ('A', 'B'):
+        for k, o in tris_by_tag[tag]:
+            lab = f"Triangle {o['idx']+1} de {o['tag']}"
+            vig = W._vignette_for(o)
+            outs, total, _ = W.render_method(params, tri=o["tri"], color=o["color"],
+                                             detailed=o["detailed"], suffix=f"_{k}",
+                                             label=lab, fig_vignette=vig)
+            done(f"methode_{k} ({lab}{' — détaillé' if o['detailed'] else ''})", outs, total)
+        # colonne après chaque figure
+        poly  = W.POLY_A if tag=='A' else W.POLY_B
+        pal   = W.PALETTE_A if tag=='A' else W.PALETTE_B
+        title = f"Colonne de largeur 1 — figure {tag}"
+        sfx   = f"_{tag.lower()}"
+        outs, total = W.render_column(params, poly=poly, palette=pal,
+                                      scene_title=title, suffix=sfx)
+        done(f"colonne_{tag}", outs, total)
 
     print("— méthode 2/3 : rationalisation réelle p = 2, q = 3", flush=True)
     tri23 = [W.P(0.0, 0.0), W.P(3.0, 0.0), W.P(1.5, 1.2)]
@@ -2110,18 +2166,33 @@ def build_master(out_dir, basename):
     meth = [p for p in glob.glob(f"{out_dir}/{b}_methode_*.mp4")
             if re.search(r"_methode_(\d+)\.mp4$", p)]
     meth.sort(key=lambda p: int(re.search(r"_methode_(\d+)\.mp4$", p).group(1)))
+    # split method clips into A and B groups, interleave column clips
+    import wbg_animate as W
+    all_tris = W._all_method_tris()
+    nA = sum(1 for o in all_tris if o['tag']=='A')
+    methA = meth[:nA]; methB = meth[nA:]
     clips = ([f"{out_dir}/{b}_prologue.mp4", f"{out_dir}/{b}_intro.mp4"]
-             + meth
-             + [f"{out_dir}/{b}_methode_2sur3.mp4", f"{out_dir}/{b}_colonne.mp4",
-                f"{out_dir}/{b}_fusion.mp4", f"{out_dir}/{b}.mp4"])
+             + methA
+             + [f"{out_dir}/{b}_colonne_a.mp4"]
+             + methB
+             + [f"{out_dir}/{b}_colonne_b.mp4",
+                f"{out_dir}/{b}_methode_2sur3.mp4",
+                f"{out_dir}/{b}_colonne.mp4",
+                f"{out_dir}/{b}_fusion.mp4",
+                f"{out_dir}/{b}.mp4"])
     for c in clips:
         assert os.path.exists(c), f"clip manquant : {c}"
     durs = [dur(f) for f in clips]
-    # transitions : prologue→intro, intro→méthode0, (entre méthodes), dernière méthode→2/3,
-    # 2/3→colonne, colonne→fusion (marquée), fusion→réassemblage
-    nmeth = len(meth)
-    ds = [0.6, 0.6] + [0.4] * (nmeth - 1) + [0.6, 0.6, 0.9, 0.6]
-    assert len(ds) == len(clips) - 1, (len(ds), len(clips))
+    # transitions dynamiques selon nb de clips
+    nmA = len(methA); nmB = len(methB)
+    ds = ([0.6, 0.6]                   # prologue→intro, intro→méthode A0
+          + [0.4]*(nmA-1)              # entre les triangles A
+          + [0.7]                      # dernier A → colonneA
+          + [0.6]                      # colonneA → méthode B0
+          + [0.4]*(nmB-1)              # entre les triangles B
+          + [0.7]                      # dernier B → colonneB
+          + [0.6, 0.6, 0.9, 0.6])     # colonneB→2/3, 2/3→colonne, colonne→fusion, fusion→réassemblage
+    assert len(ds) == len(clips) - 1, f"ds={len(ds)} clips={len(clips)}"
     acc = durs[0]; offs = []
     for k in range(len(ds)):
         offs.append(acc - ds[k]); acc += durs[k + 1] - ds[k]
@@ -2161,6 +2232,7 @@ python - <<'PYCHK'
 import wbg_animate as W
 assert len(W.POLY_A)==5 and len(W.POLY_B)==6
 assert len(W._prologue_arrangements())==3
+assert hasattr(W,'_vignette_for')
 print(f"OK — {len(W._all_method_tris())} triangles methode")
 PYCHK
 mkdir -p out

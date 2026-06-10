@@ -34,13 +34,25 @@ def render_all(params):
     outs, total, _ = W.render_intro(params); done("intro", outs, total)
 
     print("— méthode : tous les triangles de A puis de B (le plus gras en détail)", flush=True)
+    tris_by_tag = {'A': [], 'B': []}
     for k, o in enumerate(W._all_method_tris()):
-        lab = f"Triangle {o['idx']+1} de {o['tag']}"
-        outs, total, _ = W.render_method(params, tri=o["tri"], color=o["color"],
-                                         detailed=o["detailed"], suffix=f"_{k}",
-                                         label=lab)
-        done(f"methode_{k} ({lab}{' — détaillé' if o['detailed'] else ''})",
-             outs, total)
+        tris_by_tag[o['tag']].append((k, o))
+    for tag in ('A', 'B'):
+        for k, o in tris_by_tag[tag]:
+            lab = f"Triangle {o['idx']+1} de {o['tag']}"
+            vig = W._vignette_for(o)
+            outs, total, _ = W.render_method(params, tri=o["tri"], color=o["color"],
+                                             detailed=o["detailed"], suffix=f"_{k}",
+                                             label=lab, fig_vignette=vig)
+            done(f"methode_{k} ({lab}{' — détaillé' if o['detailed'] else ''})", outs, total)
+        # colonne après chaque figure
+        poly  = W.POLY_A if tag=='A' else W.POLY_B
+        pal   = W.PALETTE_A if tag=='A' else W.PALETTE_B
+        title = f"Colonne de largeur 1 — figure {tag}"
+        sfx   = f"_{tag.lower()}"
+        outs, total = W.render_column(params, poly=poly, palette=pal,
+                                      scene_title=title, suffix=sfx)
+        done(f"colonne_{tag}", outs, total)
 
     print("— méthode 2/3 : rationalisation réelle p = 2, q = 3", flush=True)
     tri23 = [W.P(0.0, 0.0), W.P(3.0, 0.0), W.P(1.5, 1.2)]
@@ -71,18 +83,33 @@ def build_master(out_dir, basename):
     meth = [p for p in glob.glob(f"{out_dir}/{b}_methode_*.mp4")
             if re.search(r"_methode_(\d+)\.mp4$", p)]
     meth.sort(key=lambda p: int(re.search(r"_methode_(\d+)\.mp4$", p).group(1)))
+    # split method clips into A and B groups, interleave column clips
+    import wbg_animate as W
+    all_tris = W._all_method_tris()
+    nA = sum(1 for o in all_tris if o['tag']=='A')
+    methA = meth[:nA]; methB = meth[nA:]
     clips = ([f"{out_dir}/{b}_prologue.mp4", f"{out_dir}/{b}_intro.mp4"]
-             + meth
-             + [f"{out_dir}/{b}_methode_2sur3.mp4", f"{out_dir}/{b}_colonne.mp4",
-                f"{out_dir}/{b}_fusion.mp4", f"{out_dir}/{b}.mp4"])
+             + methA
+             + [f"{out_dir}/{b}_colonne_a.mp4"]
+             + methB
+             + [f"{out_dir}/{b}_colonne_b.mp4",
+                f"{out_dir}/{b}_methode_2sur3.mp4",
+                f"{out_dir}/{b}_colonne.mp4",
+                f"{out_dir}/{b}_fusion.mp4",
+                f"{out_dir}/{b}.mp4"])
     for c in clips:
         assert os.path.exists(c), f"clip manquant : {c}"
     durs = [dur(f) for f in clips]
-    # transitions : prologue→intro, intro→méthode0, (entre méthodes), dernière méthode→2/3,
-    # 2/3→colonne, colonne→fusion (marquée), fusion→réassemblage
-    nmeth = len(meth)
-    ds = [0.6, 0.6] + [0.4] * (nmeth - 1) + [0.6, 0.6, 0.9, 0.6]
-    assert len(ds) == len(clips) - 1, (len(ds), len(clips))
+    # transitions dynamiques selon nb de clips
+    nmA = len(methA); nmB = len(methB)
+    ds = ([0.6, 0.6]                   # prologue→intro, intro→méthode A0
+          + [0.4]*(nmA-1)              # entre les triangles A
+          + [0.7]                      # dernier A → colonneA
+          + [0.6]                      # colonneA → méthode B0
+          + [0.4]*(nmB-1)              # entre les triangles B
+          + [0.7]                      # dernier B → colonneB
+          + [0.6, 0.6, 0.9, 0.6])     # colonneB→2/3, 2/3→colonne, colonne→fusion, fusion→réassemblage
+    assert len(ds) == len(clips) - 1, f"ds={len(ds)} clips={len(clips)}"
     acc = durs[0]; offs = []
     for k in range(len(ds)):
         offs.append(acc - ds[k]); acc += durs[k + 1] - ds[k]
