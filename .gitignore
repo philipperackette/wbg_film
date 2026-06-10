@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 out/
 wbg_video_complete.mp4
+.DS_Store
