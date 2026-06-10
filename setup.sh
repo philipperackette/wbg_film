@@ -1359,8 +1359,10 @@ def _vignette_for(o):
 
 
 def _all_method_tris():
-    """Tous les triangles de A (le plus gras detaille en 1er) puis de B (idem).
-    L'ordre A-avant-B est garanti pour que build_all insere les colonnes correctement."""
+    """Triangles de A (le plus gras detaille en 1er) puis de B (idem).
+    B T2 (idx=2, h~0.56 -> 2/3) est exclu : il est present dans le clip 2sur3.
+    L'ordre A-avant-B garantit que build_all peut inserer colonneA et colonneB
+    avec un simple split sur nA."""
     from wbg_core import ear_clip
     result = []
     for poly, pal, tag in [(POLY_A, PALETTE_A, 'A'), (POLY_B, PALETTE_B, 'B')]:
@@ -1369,6 +1371,9 @@ def _all_method_tris():
         ordered = [tris[fat]] + [t for k, t in enumerate(tris) if k != fat]
         orig_idx = [fat] + [k for k in range(len(tris)) if k != fat]
         for pos, (t, oi) in enumerate(zip(ordered, orig_idx)):
+            # B T2 est reserve pour le clip 2/3 detaille — ne pas l'inclure ici
+            if tag == 'B' and oi == 2:
+                continue
             result.append(dict(tri=_reorient_horizontal(t), color=pal[oi % len(pal)],
                                tag=tag, idx=oi, ntag=len(tris),
                                ang=_minang_tri(t), detailed=(pos == 0)))
@@ -1408,26 +1413,25 @@ def render_method(params, tri=None, color=None, detailed=True, suffix="", label=
     if fig_vignette is not None:
         fv=fig_vignette; vx=fv['poly']; vtris=fv['tris']
         aidx=fv['active_idx']; vpal=fv['palette']
-        # inset axes en haut à droite (coordonnées de data de l'axe principal)
-        bb=_method_bbox(beats); x0v,y0v,x1v,y1v=bb
-        # Petite vignette dans le coin supérieur droit de la FIGURE (hors zone animée)
-        # Taille : 11% de largeur × 13% de hauteur, coin TR
-        ins = fig.add_axes([0.87, 0.83, 0.11, 0.13], facecolor='#f5f0e8')
+        # Médaillon : petit, coin supérieur droit, dans la marge my_top (hors zone animée)
+        ins = fig.add_axes([0.875, 0.845, 0.105, 0.12], facecolor='#f5f0e8')
         ins.set_aspect('equal'); ins.axis('off')
         # contour de la figure source
         vxs = [x for x,y in vx] + [vx[0][0]]; vys = [y for x,y in vx] + [vx[0][1]]
-        ins.fill(vxs, vys, color='#EEE8D8', edgecolor=INK, linewidth=1.2)
+        ins.fill(vxs, vys, color='#EEE8D8', edgecolor=INK, linewidth=0.9)
         # triangles : actif en couleur, autres estompés
         for k, vt in enumerate(vtris):
             txs = [x for x,y in vt]; tys = [y for x,y in vt]
             if k == aidx:
-                ins.fill(txs, tys, color=vpal[k % len(vpal)], alpha=1.0, edgecolor=INK, linewidth=1.2)
+                ins.fill(txs, tys, color=vpal[k % len(vpal)], alpha=0.95,
+                         edgecolor=INK, linewidth=1.0)
             else:
-                ins.fill(txs, tys, color=vpal[k % len(vpal)], alpha=0.22, edgecolor='#B0A89A', linewidth=0.6)
+                ins.fill(txs, tys, color=vpal[k % len(vpal)], alpha=0.20,
+                         edgecolor='#AEA89A', linewidth=0.5)
         ins.autoscale_view()
-        ins.set_title(f"▲ {label}" if label else "", fontsize=6.5, color=MUTED, pad=1.5,
-                      family='serif', loc='center')
-        ins.patch.set_edgecolor('#C4BAA8'); ins.patch.set_linewidth(0.8)
+        tag_str = f"▲ {label}" if label else ""
+        ins.set_title(tag_str, fontsize=6, color=MUTED, pad=1.5, family='serif', loc='center')
+        ins.patch.set_edgecolor('#C0B8A8'); ins.patch.set_linewidth(0.7)
     nframes=int(math.ceil(total*params.fps))
     def update(fr):
         pieces,beat,in_hold,flashinfo=_method_state_at(beats, md['color'], fr/params.fps)
@@ -1725,11 +1729,18 @@ def build_intro_scene(params):
     gap=1.4; dxB=Aw+gap
     A=[(x-min(axs), y-min(ays)) for x,y in A]
     B=[(x-min(bxs)+dxB, y-min(bys)) for x,y in B]
-    triA=_tri_segments(ear_clip(list(POLY_A))); triB=_tri_segments(ear_clip(list(POLY_B)))
-    # recale les diagonales de B sur la position décalée
+    # triangles comme polygones colorés (couleurs de la palette de dissection)
+    trisA_raw=list(ear_clip(list(POLY_A))); trisB_raw=list(ear_clip(list(POLY_B)))
+    def offset_tri(t, ox, oy): return [(p.x+ox, p.y+oy) for p in t]
+    ox_a=-min(axs); oy_a=-min(ays); ox_b=-min(bxs)+dxB; oy_b=-min(bys)
+    trisA_verts=[offset_tri(t,ox_a,oy_a) for t in trisA_raw]
+    trisB_verts=[offset_tri(t,ox_b,oy_b) for t in trisB_raw]
+    trisA_colors=[PALETTE_A[i%len(PALETTE_A)] for i in range(len(trisA_raw))]
+    trisB_colors=[PALETTE_B[i%len(PALETTE_B)] for i in range(len(trisB_raw))]
+    triA=_tri_segments(trisA_raw); triB=_tri_segments(trisB_raw)
     triB=[((x0-min(bxs)+dxB,y0-min(bys)),(x1-min(bxs)+dxB,y1-min(bys))) for ((x0,y0),(x1,y1)) in triB]
     triA=[((x0-min(axs),y0-min(ays)),(x1-min(axs),y1-min(ays))) for ((x0,y0),(x1,y1)) in triA]
-    # prologue « réciproque » : un polygone générique scindé en morceaux, recentré
+    # prologue « réciproque »
     from wbg_core import P as _P
     bx1=dxB+Bw; byt=max(Ah,Bh); cx=bx1/2; cy=byt/2
     Qraw=[(0,0),(2.0,0),(2.55,1.3),(1.0,2.15),(-0.5,1.25)]
@@ -1749,9 +1760,12 @@ def build_intro_scene(params):
         return out
     centA=_cents(POLY_A, -min(axs), -min(ays))
     centB=_cents(POLY_B, -min(bxs)+dxB, -min(bys))
-    return dict(A=A,B=B,triA=triA,triB=triB,centA=centA,centB=centB,
+    return dict(A=A,B=B,triA=triA,triB=triB,
+                trisA_verts=trisA_verts,trisB_verts=trisB_verts,
+                trisA_colors=trisA_colors,trisB_colors=trisB_colors,
+                centA=centA,centB=centB,
                 Acx=Aw/2, Bcx=dxB+Bw/2, Atop=Ah, Btop=Bh,
-                nA=len(ear_clip(list(POLY_A))), nB=len(ear_clip(list(POLY_B))),
+                nA=len(trisA_raw), nB=len(trisB_raw),
                 area=poly_area(POLY_A), bbox=(0.0,0.0,dxB+Bw,max(Ah,Bh)), asm=asm)
 
 def _intro_phases(params):
@@ -1799,8 +1813,14 @@ def render_intro(params):
     cA=PALETTE_A[2]; cB=PALETTE_B[0]
     fillA=MPLPoly(sc['A'],closed=True,facecolor=cA,edgecolor=INK,lw=1.6); ax.add_patch(fillA)
     fillB=MPLPoly(sc['B'],closed=True,facecolor=cB,edgecolor=INK,lw=1.6); ax.add_patch(fillB)
-    lcA=LineCollection(sc['triA'],colors=INK,linewidths=0.9); ax.add_collection(lcA)
-    lcB=LineCollection(sc['triB'],colors=INK,linewidths=0.9); ax.add_collection(lcB)
+    lcA=LineCollection(sc['triA'],colors=INK,linewidths=1.4); ax.add_collection(lcA)
+    lcB=LineCollection(sc['triB'],colors=INK,linewidths=1.4); ax.add_collection(lcB)
+    # triangles colorés (même palette que la dissection) — s'affichent avec la triangulation
+    triA_fills=[MPLPoly(v,closed=True,facecolor=c,edgecolor=INK,lw=1.2,alpha=0.0)
+                for v,c in zip(sc['trisA_verts'],sc['trisA_colors'])]
+    triB_fills=[MPLPoly(v,closed=True,facecolor=c,edgecolor=INK,lw=1.2,alpha=0.0)
+                for v,c in zip(sc['trisB_verts'],sc['trisB_colors'])]
+    for p in triA_fills+triB_fills: ax.add_patch(p)
     labA=ax.text(sc['Acx'],sc['Atop']+0.32,"A",ha='center',va='bottom',fontsize=20,color=ACCENT,family='serif',weight='bold')
     labB=ax.text(sc['Bcx'],sc['Btop']+0.32,"B",ha='center',va='bottom',fontsize=20,color='#2f6d8c',family='serif',weight='bold')
     arA=ax.text(sc['Acx'],-0.32,f"aire ≈ {_fr(sc['area'])}",ha='center',va='top',fontsize=11.5,color=MUTED,family='serif')
@@ -1820,10 +1840,16 @@ def render_intro(params):
         fillB.set_alpha(aB); labB.set_alpha(aB)
         arA.set_alpha(aAr); arB.set_alpha(aAr)
         lcA.set_alpha(aTA); lcB.set_alpha(aTB)
-        for tnum in numA: tnum.set_alpha(aTA)
-        for tnum in numB: tnum.set_alpha(aTB)
+        # triangles colorés : apparaissent avec la triangulation (légèrement décalés)
+        for p in triA_fills: p.set_alpha(min(aTA, 0.88))
+        for p in triB_fills: p.set_alpha(min(aTB, 0.88))
+        # numéros apparaissent après les couleurs
+        num_aTA = max(0.0, aTA - 0.3)
+        num_aTB = max(0.0, aTB - 0.3)
+        for tnum in numA: tnum.set_alpha(num_aTA)
+        for tnum in numB: tnum.set_alpha(num_aTB)
         t,m=TXT[nm]; phase.set_text(t); msg.set_text(m)
-        return [fillA,fillB,lcA,lcB,labA,labB,arA,arB,phase,msg]+numA+numB
+        return [fillA,fillB,lcA,lcB,labA,labB,arA,arB,phase,msg]+numA+numB+triA_fills+triB_fills
     anim=FuncAnimation(fig,update,frames=nframes,interval=1000/params.fps,blit=False)
     outs=[]
     if params.make_mp4:
@@ -2120,7 +2146,9 @@ def render_all(params):
     tris_by_tag = {'A': [], 'B': []}
     for k, o in enumerate(W._all_method_tris()):
         tris_by_tag[o['tag']].append((k, o))
-    for tag in ('A', 'B'):
+
+    # ── Triangles de A puis colonneA ──
+    for tag in ('A',):
         for k, o in tris_by_tag[tag]:
             lab = f"Triangle {o['idx']+1} de {o['tag']}"
             vig = W._vignette_for(o)
@@ -2128,28 +2156,40 @@ def render_all(params):
                                              detailed=o["detailed"], suffix=f"_{k}",
                                              label=lab, fig_vignette=vig)
             done(f"methode_{k} ({lab}{' — détaillé' if o['detailed'] else ''})", outs, total)
-        # colonne après chaque figure
-        poly  = W.POLY_A if tag=='A' else W.POLY_B
-        pal   = W.PALETTE_A if tag=='A' else W.PALETTE_B
-        title = f"Colonne de largeur 1 — figure {tag}"
-        sfx   = f"_{tag.lower()}"
+        poly = W.POLY_A; pal = W.PALETTE_A
         outs, total = W.render_column(params, poly=poly, palette=pal,
-                                      scene_title=title, suffix=sfx)
-        done(f"colonne_{tag}", outs, total)
+                                      scene_title="Colonne de largeur 1 — figure A",
+                                      suffix="_a")
+        done("colonne_A", outs, total)
 
-    print("— méthode 2/3 : rationalisation réelle p = 2, q = 3", flush=True)
-    tri23 = [W.P(0.0, 0.0), W.P(3.0, 0.0), W.P(1.5, 1.2)]
-    intro23 = ("Le cas qui exige une vraie rationalisation : 2/3",
-               "Ce triangle donne un parallélogramme de hauteur h ≈ 0,60 — entre 1/2 et 2/3.\n"
-               "Le côté oblique ne peut pas valoir 1 : on l'amène à 2/3, puis q = 3 bandes\n"
-               "(2/3 × 3 = 2), puis p = 2 tranches, pour revenir à la largeur exactement 1.")
-    outs, total, _ = W.render_method(params, tri=tri23, color=W.PALETTE_B[1],
+    # ── Triangles de B (sans T2) puis 2/3 (= T2) puis colonneB ──
+    for k, o in tris_by_tag['B']:
+        lab = f"Triangle {o['idx']+1} de B"
+        vig = W._vignette_for(o)
+        outs, total, _ = W.render_method(params, tri=o["tri"], color=o["color"],
+                                         detailed=o["detailed"], suffix=f"_{k}",
+                                         label=lab, fig_vignette=vig)
+        done(f"methode_{k} ({lab}{' — détaillé' if o['detailed'] else ''})", outs, total)
+
+    # B T2 (idx=2) : rationalisation 2/3 — dernière dissection de B, avant colonneB
+    print("— méthode 2/3 : triangle 2 de B (rationalisation réelle p=2, q=3)", flush=True)
+    from wbg_core import ear_clip
+    trisB_raw = [list(t) for t in ear_clip(list(W.POLY_B))]
+    t2 = W._reorient_horizontal(trisB_raw[2])
+    vig2 = dict(poly=[(p.x,p.y) for p in W.POLY_B],
+                tris=[[(p.x,p.y) for p in t] for t in trisB_raw],
+                active_idx=2, palette=W.PALETTE_B)
+    outs, total, _ = W.render_method(params, tri=t2, color=W.PALETTE_B[2],
                                      detailed=True, max_den=3, suffix="_2sur3",
-                                     intro=intro23)
-    done("methode_2sur3 (rationalisation 2/3)", outs, total)
+                                     label="Triangle 2 de B",
+                                     fig_vignette=vig2)
+    done("methode_2sur3 (triangle B T2, rationalisation 2/3)", outs, total)
 
-    print("— colonne (empilement des rectangles)", flush=True)
-    outs, total = W.render_column(params); done("colonne", outs, total)
+    # colonneB après tous les triangles de B (y compris T2)
+    outs, total = W.render_column(params, poly=W.POLY_B, palette=W.PALETTE_B,
+                                  scene_title="Colonne de largeur 1 — figure B",
+                                  suffix="_b")
+    done("colonne_B", outs, total)
 
     print("— fusion (superposition des deux découpages)", flush=True)
     outs, total, sc = W.render_fusion(params)
@@ -2166,32 +2206,31 @@ def build_master(out_dir, basename):
     meth = [p for p in glob.glob(f"{out_dir}/{b}_methode_*.mp4")
             if re.search(r"_methode_(\d+)\.mp4$", p)]
     meth.sort(key=lambda p: int(re.search(r"_methode_(\d+)\.mp4$", p).group(1)))
-    # split method clips into A and B groups, interleave column clips
     import wbg_animate as W
     all_tris = W._all_method_tris()
     nA = sum(1 for o in all_tris if o['tag']=='A')
     methA = meth[:nA]; methB = meth[nA:]
+    # Sequence: prologue intro | A tris | colonneA | B tris | 2sur3 | colonneB | fusion | reassembly
     clips = ([f"{out_dir}/{b}_prologue.mp4", f"{out_dir}/{b}_intro.mp4"]
              + methA
              + [f"{out_dir}/{b}_colonne_a.mp4"]
              + methB
-             + [f"{out_dir}/{b}_colonne_b.mp4",
-                f"{out_dir}/{b}_methode_2sur3.mp4",
-                f"{out_dir}/{b}_colonne.mp4",
+             + [f"{out_dir}/{b}_methode_2sur3.mp4",
+                f"{out_dir}/{b}_colonne_b.mp4",
                 f"{out_dir}/{b}_fusion.mp4",
                 f"{out_dir}/{b}.mp4"])
     for c in clips:
         assert os.path.exists(c), f"clip manquant : {c}"
     durs = [dur(f) for f in clips]
-    # transitions dynamiques selon nb de clips
     nmA = len(methA); nmB = len(methB)
-    ds = ([0.6, 0.6]                   # prologue→intro, intro→méthode A0
-          + [0.4]*(nmA-1)              # entre les triangles A
-          + [0.7]                      # dernier A → colonneA
-          + [0.6]                      # colonneA → méthode B0
-          + [0.4]*(nmB-1)              # entre les triangles B
-          + [0.7]                      # dernier B → colonneB
-          + [0.6, 0.6, 0.9, 0.6])     # colonneB→2/3, 2/3→colonne, colonne→fusion, fusion→réassemblage
+    ds = ([0.6, 0.6]          # prologue→intro, intro→méthode A0
+          + [0.4]*(nmA-1)     # entre les triangles A
+          + [0.7]             # dernier A → colonneA
+          + [0.6]             # colonneA → méthode B0
+          + [0.4]*(nmB-1)     # entre les triangles B
+          + [0.5]             # dernier B → 2sur3
+          + [0.7]             # 2sur3 → colonneB
+          + [0.9, 0.6])       # colonneB→fusion, fusion→réassemblage
     assert len(ds) == len(clips) - 1, f"ds={len(ds)} clips={len(clips)}"
     acc = durs[0]; offs = []
     for k in range(len(ds)):
@@ -2230,12 +2269,14 @@ WBG_BUILD_EOF
 
 python - <<'PYCHK'
 import wbg_animate as W
-tris=W._all_method_tris()
-assert tris[0]['tag']=='A', "premier tri doit etre A"
-assert tris[3]['tag']=='B', "4e tri doit etre B"
-assert all(o['tag']=='A' for o in tris[:3])
-assert all(o['tag']=='B' for o in tris[3:])
-print(f"OK — ordre A/B verifie, {len(tris)} triangles, vignettes={'_vignette_for' in dir(W)}")
+sc = W.build_intro_scene(W.AnimParams(fps=30, make_gif=False))
+assert 'trisA_colors' in sc and 'trisB_colors' in sc, "couleurs triangulation manquantes"
+tris = W._all_method_tris()
+assert tris[0]['tag'] == 'A' and all(o['tag'] == 'A' for o in tris[:3])
+assert not any(o['tag'] == 'B' and o['idx'] == 2 for o in tris), "B T2 doit etre reserve"
+nA = sum(1 for o in tris if o['tag'] == 'A')
+nB = sum(1 for o in tris if o['tag'] == 'B')
+print("OK — intro coloree, " + str(len(tris)) + " triangles (A:" + str(nA) + " B:" + str(nB) + ")")
 PYCHK
 mkdir -p out
 python build_all.py --out-dir out
