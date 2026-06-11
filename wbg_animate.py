@@ -380,20 +380,36 @@ def _beat_dur(movers, params):
         d=max(d, dist/params.trans_speed, ang/params.rot_speed)
     return d
 
-_SEQ_GAP = 0.14   # petit temps mort entre deux pièces déplacées successivement (s)
+_SEQ_GAP = 0.16   # temps mort entre deux sous-ensembles de transformation différente (s)
 
-def _mover_schedule(movers, params):
-    """Programme SÉQUENTIEL : une seule pièce bouge à la fois, dans l'ordre des movers.
-    Renvoie (starts, durs, total) en secondes (avant facteur slowmo)."""
-    starts=[]; durs=[]; t=0.0
-    for k,(pid,b,a,iso) in enumerate(movers):
-        if k>0: t+=_SEQ_GAP
-        cb=_centroid(b); ca=_centroid(a)
-        dist=math.hypot(ca[0]-cb[0], ca[1]-cb[1])
-        ang=abs(math.degrees(iso[1])) if iso[0]=='rot' else 0.0
-        du=max(dist/params.trans_speed, ang/params.rot_speed, params.min_move)
-        starts.append(t); durs.append(du); t+=du
-    return starts, durs, t
+def _mover_groups(movers, params):
+    """Regroupe les movers par isométrie IDENTIQUE.
+    - les pièces qui subissent exactement la même transformation bougent ENSEMBLE ;
+    - les sous-ensembles de transformations différentes s'enchaînent successivement ;
+    - les pièces immobiles sont affichées fixes (pas de fenêtre de temps).
+    Renvoie (static, groups, total) où groups = [(indices, start, dur), …] séquentiels."""
+    def key(iso):
+        if iso[0]=='trans': return ('trans', round(iso[1],6), round(iso[2],6))
+        return ('rot', round(iso[1],6), round(iso[2],6), round(iso[3],6))
+    def moves(iso):
+        if iso[0]=='trans': return math.hypot(iso[1],iso[2])>1e-9
+        return abs(iso[1])>1e-9
+    static=[]; bykey={}; order=[]
+    for idx,(pid,b,a,iso) in enumerate(movers):
+        if not moves(iso): static.append(idx); continue
+        k=key(iso)
+        if k not in bykey: bykey[k]=[]; order.append(k)
+        bykey[k].append(idx)
+    groups=[]; t=0.0
+    for gi,k in enumerate(order):
+        idxs=bykey[k]; iso=movers[idxs[0]][3]
+        if iso[0]=='trans':
+            du=max(math.hypot(iso[1],iso[2])/params.trans_speed, params.min_move)
+        else:
+            du=max(abs(math.degrees(iso[1]))/params.rot_speed, params.min_move)
+        if gi>0: t+=_SEQ_GAP
+        groups.append((idxs, t, du)); t+=du
+    return static, groups, t
 
 def build_method(tri, color, max_den=2):
     """Construit triangle->parallélogramme (calculé) puis enregistre la suite de la chaîne."""
@@ -487,9 +503,11 @@ def method_beats(md, params, detailed=True, label="", intro=None):
         'q-cut':("Étape suivante : rendre ce côté ENTIER",
                  f"Le côté oblique vaut {frac}. Idée : couper la base en q = {q} bandes égales et les empiler.\n"
                  f"Le côté sera alors répété {q} fois : {frac} × {q} = {p}. Il deviendra un nombre ENTIER."),
-        'par-rect':("Dernière étape : redresser en rectangle",
-                 f"Le côté oblique mesure {p} (entier). En glissant de fines tranches, on redresse le dernier\n"
-                 f"côté jusqu'à l'angle droit : on obtient enfin un rectangle de largeur exactement 1.")}
+        'par-rect':("Dernière étape : redresser en rectangle (empilement final)",
+                 f"Le côté oblique vaut maintenant 1, mais le parallélogramme est encore penché.\n"
+                 f"On le tranche en bandes de largeur 1 le long de ce côté ; chaque bande qui dépasse\n"
+                 f"coulisse d'un bloc pour s'empiler sur la précédente. Empilées, elles forment\n"
+                 f"le rectangle de largeur exactement 1 (c'est l'« empilement final » de Boyer, fig. 8.4).")}
     explained=set()
     def _cen(vv):
         k=len(vv); return (sum(x for x,_ in vv)/k, sum(y for _,y in vv)/k)
@@ -522,8 +540,8 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                 'title':"Redressement : une seule découpe",
                 'msg':"Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.",'hold':H(2.6)})
             beats.append({'k':'move','state':stt,'movers':mv,
-                'title':"…les morceaux se glissent à leur place",
-                'msg':"Chaque morceau qui dépasse vient se placer, un par un :\nle parallélogramme devient un rectangle de largeur exactement 1.",
+                'title':"…le morceau qui dépasse glisse à sa place",
+                'msg':"Le morceau qui dépasse à droite glisse d'un bloc vers la gauche\n(toutes ces pièces subissent la MÊME translation) : on obtient un rectangle de largeur 1.",
                 'labels':[],'hold':H(3.6),'slowmo':1.0})
             last='par-rect'; continue
         if ev[i]['t']=='cut':
@@ -671,10 +689,11 @@ def _method_timeline(beats, params):
             sm=b.get('slowmo',1.0)
             if b.get('together'):                      # bloc rigide : tout bouge ensemble
                 b['motion']=_beat_dur(b['movers'], params)*sm
-                b.pop('mstart',None); b.pop('mdur',None)
-            else:                                      # dissection : une pièce à la fois
-                starts,durs,total=_mover_schedule(b['movers'], params)
-                b['mstart']=[s*sm for s in starts]; b['mdur']=[d*sm for d in durs]
+                b.pop('mstatic',None); b.pop('mgroups',None)
+            else:                                      # groupes par transformation identique
+                static,groups,total=_mover_groups(b['movers'], params)
+                b['mstatic']=static
+                b['mgroups']=[(idxs, s*sm, d*sm) for (idxs,s,d) in groups]
                 b['motion']=total*sm
         elif b['k']=='cut': b['motion']=params.cut_dur
         else: b['motion']=0.0
@@ -697,14 +716,19 @@ def _method_state_at(beats, color, T):
                 return _snap(b['state']), b, in_hold, (b.get('segs') or [], f)
             f=min(1.0,max(0.0,local/max(motion,1e-6)))
             cur=_snap(b['state'])
-            mstart=b.get('mstart'); mdur=b.get('mdur')
-            for k,(pid,bf,af,iso) in enumerate(b['movers']):
-                if mstart is not None:
-                    s=mstart[k]; d=mdur[k]
+            mgroups=b.get('mgroups')
+            if mgroups is not None:
+                for k in b.get('mstatic',[]):
+                    pid,bf,af,iso=b['movers'][k]
+                    cur[pid]=(af, cur.get(pid,(None,color))[1])
+                for (idxs,s,d) in mgroups:
                     fk = 0.0 if local<=s else (1.0 if local>=s+d else (local-s)/d)
-                else:
-                    fk=f
-                cur[pid]=(_interp_iso(bf,af,iso,fk), cur.get(pid,(None,color))[1])
+                    for k in idxs:
+                        pid,bf,af,iso=b['movers'][k]
+                        cur[pid]=(_interp_iso(bf,af,iso,fk), cur.get(pid,(None,color))[1])
+            else:                                      # together : tout bouge ensemble
+                for (pid,bf,af,iso) in b['movers']:
+                    cur[pid]=(_interp_iso(bf,af,iso,f), cur.get(pid,(None,color))[1])
             return cur, b, in_hold, None
     return _snap(beats[-1]['state']), beats[-1], True, None
 
