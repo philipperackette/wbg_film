@@ -560,6 +560,13 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                 'ra_wv':wv, 'ra_segs':ra_segs,
                 'title':"Redressement : une seule découpe",
                 'msg':"Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.",'hold':H(2.6)})
+
+            # Pour le redressement du triangle 2 de A : les groupes mobiles doivent partir
+            # visuellement de gauche à droite. _mover_groups conserve l'ordre de première
+            # apparition des transformations ; on trie donc les movers par abscisse de départ.
+            if "Triangle 2 de A" in label:
+                mv.sort(key=lambda item: _cen(item[1])[0])
+
             beats.append({'k':'move','state':stt,'movers':mv,
                 'title':"…le morceau qui dépasse glisse à sa place",
                 'msg':"Le morceau qui dépasse à droite glisse d'un bloc vers la gauche\n(toutes ces pièces subissent la MÊME translation) : on obtient un rectangle de largeur 1.",
