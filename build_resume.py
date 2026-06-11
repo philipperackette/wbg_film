@@ -79,6 +79,10 @@ def render_all(params):
     if not have(f"{P}.mp4"):
         log("reassemblage…"); W.render(params); log("reassemblage OK")
     else: log("reassemblage (skip)")
+
+    if not have(f"{P}_BA.mp4"):
+        log("reassemblage_BA…"); W.render(params, direction="BA"); log("reassemblage_BA OK")
+    else: log("reassemblage_BA (skip)")
     log("ALL CLIPS DONE")
 
 if __name__=="__main__":

@@ -111,48 +111,70 @@ def _bbox(points):
 
 
 # ───────────────────────── construction de la scène ─────────────────────────
-def build_scene(params: AnimParams):
+def build_scene(params: AnimParams, direction="AB"):
+    """Scène de réassemblage à 3 stations (gauche | rectangle | droite).
+    direction="AB" : A -> rectangle -> B, couleurs de A (clip historique).
+    direction="BA" : B -> rectangle -> A, couleurs de B (clip symétrique).
+    """
     dA=dissect_polygon(POLY_A, PALETTE_A, "A", max_den=2)
     dB=dissect_polygon(POLY_B, PALETTE_B, "B", max_den=2)
     com=common_refinement(dA["column"], dB["column"], poly_area(POLY_A))
     loc=common_located(com, dA["column"], dB["column"])
     H=dA["colH"]   # hauteur du rectangle (6)
 
-    # poses brutes (P -> tuples)
+    # poses brutes (P -> tuples) : A dans le polygone A, R dans le rectangle, B dans B
     rawA=[[(v.x,v.y) for v in c["inA"]]  for c in loc]
     rawR=[[(v.x,v.y) for v in c["rect"]] for c in loc]
     rawB=[[(v.x,v.y) for v in c["inB"]]  for c in loc]
-    colors=[c["color"] for c in loc]          # couleur = triangle d'origine dans A
-    origins=[c["ai"] for c in loc]
+    colA=[c["color"] for c in loc]                              # couleur = triangle de A
+    colB=[PALETTE_B[c["bi"] % len(PALETTE_B)] for c in loc]     # couleur = triangle de B
+    origA=[c["ai"] for c in loc]; origB=[c["bi"] for c in loc]
+
+    if direction=="AB":
+        rawL,rawM,rawN = rawA,rawR,rawB; colors=colA; orig=origA
+        labL,labN = "A","B"
+        title="Découpe, glissement, rotation : A et B, les mêmes pièces"
+        capLM="Chaque pièce glisse et tourne : A → rectangle de largeur 1"
+        capMN="Les mêmes pièces repartent : rectangle de largeur 1 → B"
+        capLN="Les mêmes pièces : A → B"
+        holdL="Les {n} pièces communes, disposées comme dans A"
+        holdN="Les mêmes pièces réassemblées en B — CQFD"
+        suffix=""
+    else:  # "BA" : symétrique, couleurs de B
+        rawL,rawM,rawN = rawB,rawR,rawA; colors=colB; orig=origB
+        labL,labN = "B","A"
+        title="Découpe, glissement, rotation : B et A, les mêmes pièces"
+        capLM="Chaque pièce glisse et tourne : B → rectangle de largeur 1"
+        capMN="Les mêmes pièces repartent : rectangle de largeur 1 → A"
+        capLN="Les mêmes pièces : B → A"
+        holdL="Les {n} pièces communes, disposées comme dans B"
+        holdN="Les mêmes pièces réassemblées en A — CQFD"
+        suffix="_BA"
+    holdM="Les mêmes pièces réunies en rectangle de largeur 1"
 
     # bboxes globales par station, pour centrer verticalement chaque forme
     def gbb(raws):
         pts=[p for poly in raws for p in poly]; return _bbox(pts)
-    bA=gbb(rawA); bR=gbb(rawR); bB=gbb(rawB)
-    wA=bA[2]-bA[0]; wB=bB[2]-bB[0]
+    bL=gbb(rawL); bM=gbb(rawM); bN=gbb(rawN)
+    wL=bL[2]-bL[0]; wM=bM[2]-bM[0]; wN=bN[2]-bN[0]
     g=params.gap
-    # positions horizontales des stations
-    xA=0.0; xR=wA+g; xB=wA+g+(bR[2]-bR[0])+g
+    xL=0.0; xM=wL+g; xN=wL+g+wM+g
     def offset(raws, bb, X0):
-        w=bb[2]-bb[0]; h=bb[3]-bb[1]
-        ox=X0-bb[0]
-        oy=H/2 - (bb[1]+h/2)            # centre vertical dans [0,H]
+        ox=X0-bb[0]; oy=H/2 - (bb[1]+(bb[3]-bb[1])/2)   # centre vertical dans [0,H]
         return [[(x+ox, y+oy) for (x,y) in poly] for poly in raws]
-    posA=offset(rawA,bA,xA); posR=offset(rawR,bR,xR); posB=offset(rawB,bB,xB)
+    posL=offset(rawL,bL,xL); posM=offset(rawM,bM,xM); posN=offset(rawN,bN,xN)
 
-    # ordre d'animation : par triangle d'origine puis de bas en haut
+    # ordre d'animation : par triangle d'origine puis de bas en haut (station de départ)
     idx=list(range(len(loc)))
-    idx.sort(key=lambda i:(origins[i] if params.group_by_origin else 0,
-                           _centroid(posA[i])[1], _centroid(posA[i])[0]))
+    idx.sort(key=lambda i:(orig[i] if params.group_by_origin else 0,
+                           _centroid(posL[i])[1], _centroid(posL[i])[0]))
 
-    # durées de déplacement par pièce
     def dur(p1,p2):
         c1=_centroid(p1); c2=_centroid(p2)
         dist=math.hypot(c2[0]-c1[0], c2[1]-c1[1])
         ang=abs(math.degrees(_rel_angle(p1,p2)))
         return max(dist/params.trans_speed, ang/params.rot_speed, params.min_move)
 
-    # planifie les départs (avec décalage) pour une phase
     def plan(src,dst):
         starts={}; durs={}
         for k,i in enumerate(idx):
@@ -161,39 +183,37 @@ def build_scene(params: AnimParams):
         length=max(starts[i]+durs[i] for i in idx)
         return starts,durs,length
 
-    seq=[]   # liste de phases : (type, t0, length, payload)
-    T=0.0
-    seq.append(("hold", T, params.pause_start, "A"));            T+=params.pause_start
+    n=len(loc)
+    seq=[]; T=0.0
+    seq.append(("hold", T, params.pause_start, ("L", holdL.format(n=n)))); T+=params.pause_start
     if params.show_rect_phase:
-        s,d,L=plan(posA,posR); seq.append(("move",T,L,(posA,posR,s,d,"Chaque pièce glisse et tourne : A → rectangle de largeur 1"))); T+=L
-        seq.append(("hold",T,params.pause_mid,"rect"));          T+=params.pause_mid
-        s,d,L=plan(posR,posB); seq.append(("move",T,L,(posR,posB,s,d,"Les mêmes pièces repartent : rectangle de largeur 1 → B"))); T+=L
+        s,d,L=plan(posL,posM); seq.append(("move",T,L,(posL,posM,s,d,capLM))); T+=L
+        seq.append(("hold",T,params.pause_mid, ("M", holdM)));               T+=params.pause_mid
+        s,d,L=plan(posM,posN); seq.append(("move",T,L,(posM,posN,s,d,capMN))); T+=L
     else:
-        s,d,L=plan(posA,posB); seq.append(("move",T,L,(posA,posB,s,d,"Les mêmes pièces : A → B"))); T+=L
-    seq.append(("hold",T,params.pause_end,"B"));                 T+=params.pause_end
+        s,d,L=plan(posL,posN); seq.append(("move",T,L,(posL,posN,s,d,capLN))); T+=L
+    seq.append(("hold",T,params.pause_end, ("N", holdN)));                    T+=params.pause_end
     total=T
 
-    # bornes du cadre
-    allpts=[p for P_ in (posA,posR,posB) for poly in P_ for p in poly]
+    allpts=[p for Pset in (posL,posM,posN) for poly in Pset for p in poly]
     bx=_bbox(allpts)
     frame={"xlim":(bx[0]-0.6, bx[2]+0.6), "ylim":(bx[1]-0.8, bx[3]+0.9),
-           "xA":xA,"xR":xR,"xB":xB,"wA":wA,"wB":wB,"Rw":bR[2]-bR[0],"H":H}
+           "stations":[(xL+wL/2,labL,13),(xM+wM/2,"rectangle de largeur 1",11),
+                       (xN+wN/2,labN,13)], "H":H}
 
-    return dict(loc=loc, colors=colors, posA=posA, posR=posR, posB=posB,
-                idx=idx, seq=seq, total=total, frame=frame, dA=dA, dB=dB, com=com)
+    return dict(loc=loc, colors=colors, stations={"L":posL,"M":posM,"N":posN},
+                idx=idx, seq=seq, total=total, frame=frame, title=title,
+                basename_suffix=suffix, dA=dA, dB=dB, com=com)
 
 
 def pose_and_label_at(scene, T):
-    """Renvoie (liste de poses des 43 pièces à l'instant T, libellé de phase)."""
-    posA=scene["posA"]; n=len(posA)
-    cur=[None]*n; label="A"
-    # localise la phase
+    """Renvoie (liste de poses des pièces à l'instant T, libellé de phase)."""
+    st=scene["stations"]; n=len(st["L"]); cur=[None]*n
     for (typ,t0,L,payload) in scene["seq"]:
         if T < t0+L or (typ,t0,L,payload) is scene["seq"][-1]:
             if typ=="hold":
-                ref = {"A":scene["posA"],"rect":scene["posR"],"B":scene["posB"]}[payload]
-                cur=[list(p) for p in ref]
-                label={"A":f"Les {n} pièces communes, disposées comme dans A","rect":"Les mêmes pièces réunies en rectangle de largeur 1","B":"Les mêmes pièces réassemblées en B — CQFD"}[payload]
+                key,label=payload
+                cur=[list(p) for p in st[key]]
             else:
                 src,dst,starts,durs,label=payload
                 local=T-t0
@@ -202,8 +222,8 @@ def pose_and_label_at(scene, T):
                     t=0.0 if t<0 else (1.0 if t>1 else t)
                     cur[i]=interp_pose(src[i],dst[i],_smooth(t))
             return cur,label
-    cur=[list(p) for p in scene["posB"]]
-    return cur,"B"
+    last=scene["seq"][-1]
+    return [list(p) for p in st["N"]], (last[3][1] if last[0]=="hold" else "")
 
 
 # ───────────────────────── rendu ─────────────────────────
@@ -215,23 +235,21 @@ def _setup_fig(scene, params):
     fr=scene["frame"]; ax.set_xlim(*fr["xlim"]); ax.set_ylim(*fr["ylim"])
 
     patches=[]
-    for i in range(len(scene["posA"])):
-        poly=MPLPoly(scene["posA"][i], closed=True, facecolor=scene["colors"][i],
+    L0=scene["stations"]["L"]
+    for i in range(len(L0)):
+        poly=MPLPoly(L0[i], closed=True, facecolor=scene["colors"][i],
                      edgecolor=INK, linewidth=0.5, joinstyle='round')
         ax.add_patch(poly); patches.append(poly)
 
     # titre + légende de phase + étiquettes des stations + règle
-    fig.text(0.5,0.95,"Découpe, glissement, rotation : A et B, les mêmes pièces",
+    fig.text(0.5,0.95, scene["title"],
              ha='center',va='center',fontsize=16,color=INK,family='serif',weight='bold')
     phase=fig.text(0.5,0.895,"",ha='center',va='center',fontsize=12,color=MUTED,
                    family='serif',style='italic')
     fr=scene["frame"]; ybl=fr["ylim"][0]+0.25
-    ax.text(fr["xA"]+fr["wA"]/2, ybl, "A", ha='center', va='top', fontsize=13,
-            color=INK, family='serif', weight='bold')
-    ax.text(fr["xR"]+fr["Rw"]/2, ybl, "rectangle de largeur 1", ha='center', va='top',
-            fontsize=11, color=INK, family='serif', weight='bold')
-    ax.text(fr["xB"]+fr["wB"]/2, ybl, "B", ha='center', va='top', fontsize=13,
-            color=INK, family='serif', weight='bold')
+    for (xc,lab,fs) in fr["stations"]:
+        ax.text(xc, ybl, lab, ha='center', va='top', fontsize=fs,
+                color=INK, family='serif', weight='bold')
     # règle 1 unité (bas-gauche)
     rx=fr["xlim"][0]+0.4; ry=fr["ylim"][0]+0.45
     ax.plot([rx,rx+1],[ry,ry],color=ACCENT,lw=1.6)
@@ -241,9 +259,9 @@ def _setup_fig(scene, params):
     return fig,ax,patches,phase
 
 
-def render(params: AnimParams):
+def render(params: AnimParams, direction="AB"):
     os.makedirs(params.out_dir, exist_ok=True)
-    scene=build_scene(params)
+    scene=build_scene(params, direction)
     fig,ax,patches,phase=_setup_fig(scene,params)
     nframes=int(math.ceil(scene["total"]*params.fps))
 
@@ -256,14 +274,14 @@ def render(params: AnimParams):
         return patches+[phase]
 
     anim=FuncAnimation(fig,update,frames=nframes,interval=1000/params.fps,blit=False)
+    sfx=scene["basename_suffix"]
     outputs=[]
     if params.make_mp4:
-        path=os.path.join(params.out_dir,f"{params.basename}.mp4")
+        path=os.path.join(params.out_dir,f"{params.basename}{sfx}.mp4")
         anim.save(path,writer=FFMpegWriter(fps=params.fps,bitrate=2600),dpi=params.dpi)
         outputs.append(path)
     if params.make_gif:
-        path=os.path.join(params.out_dir,f"{params.basename}.gif")
-        step=max(1,round(params.fps/params.gif_fps))
+        path=os.path.join(params.out_dir,f"{params.basename}{sfx}.gif")
         anim.save(path,writer=PillowWriter(fps=params.gif_fps),dpi=max(60,params.dpi-30),
                   savefig_kwargs={})
         outputs.append(path)
@@ -1356,8 +1374,9 @@ def render_prologue(params):
             t0 = _t0c(ts,'cv'); fade = max(0.25, 1.0-0.75*_smooth(min(1.0,(T-t0)/2.0)))
         for i in range(5):
             ta = arrs[a][i]; tb = arrs[b][i]
-            interp = [(ta[k][0]+(tb[k][0]-ta[k][0])*f,
-                       ta[k][1]+(tb[k][1]-ta[k][1])*f) for k in range(3)]
+            # mouvement PLAN rigide (translation du centroïde + rotation), pas de lerp
+            # sommet-à-sommet qui ferait « retourner » la pièce dans l'espace.
+            interp = interp_pose(ta, tb, f) if a != b else list(ta)
             patches[i].set_xy(interp); patches[i].set_alpha(fade)
             cx = sum(x for x,y in interp)/3; cy = sum(y for x,y in interp)/3
             nums[i].set_position((cx,cy)); nums[i].set_alpha(fade)

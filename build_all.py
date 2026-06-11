@@ -88,6 +88,9 @@ def render_all(params):
 
     print("— réassemblage (A → rectangle → B)", flush=True)
     outs, sc = W.render(params); done("reassemblage", outs, sc["total"])
+
+    print("— réassemblage symétrique (B → rectangle → A, couleurs de B)", flush=True)
+    outs, sc = W.render(params, direction="BA"); done("reassemblage_BA", outs, sc["total"])
     return log
 
 
@@ -109,7 +112,8 @@ def build_master(out_dir, basename):
              + [f"{out_dir}/{b}_methode_2sur3.mp4",
                 f"{out_dir}/{b}_colonne_b.mp4",
                 f"{out_dir}/{b}_fusion.mp4",
-                f"{out_dir}/{b}.mp4"])
+                f"{out_dir}/{b}.mp4",
+                f"{out_dir}/{b}_BA.mp4"])
     for c in clips:
         assert os.path.exists(c), f"clip manquant : {c}"
     durs = [dur(f) for f in clips]
@@ -121,7 +125,7 @@ def build_master(out_dir, basename):
           + [0.4]*(nmB-1)     # entre les triangles B
           + [0.5]             # dernier B → 2sur3
           + [0.7]             # 2sur3 → colonneB
-          + [0.9, 0.6])       # colonneB→fusion, fusion→réassemblage
+          + [0.9, 0.6, 0.6])  # colonneB→fusion, fusion→réassemblage, réassemblage→symétrique
     assert len(ds) == len(clips) - 1, f"ds={len(ds)} clips={len(clips)}"
     acc = durs[0]; offs = []
     for k in range(len(ds)):
