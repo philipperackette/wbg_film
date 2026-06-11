@@ -546,16 +546,21 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                 stt[pid]=(sv,col); mv.append((pid,sv,fv,('trans',d[0],d[1])))
             # La coupe CRÉE les pièces : elles sont affichées séparées (stt) dès la pause
             # d'après-coupe, AVANT le moindre glissement.
-            # direction du côté unité (parallèle aux coupes) : sert à coder l'angle droit
-            # du rectangle obtenu (le côté unité devient ⊥ à la base).
-            wv=None
+            # Segments de coupe du redressement : on place un codage d'angle droit
+            # rouge sur CHAQUE coupe rouge visible.
+            ra_segs=[]; wv=None
             for sg in cutsegs:
-                (x0,y0),(x1,y1)=sg; ln=math.hypot(x1-x0,y1-y0)
-                if ln>1e-6: wv=((x1-x0)/ln,(y1-y0)/ln); break
+                (x0,y0),(x1,y1)=sg
+                ln=math.hypot(x1-x0,y1-y0)
+                if ln>1e-6:
+                    ra_segs.append(sg)
+                    if wv is None:
+                        wv=((x1-x0)/ln,(y1-y0)/ln)
             beats.append({'k':'cut','state':S_before,'state_after':_snap(stt),'segs':cutsegs,
+                'ra_wv':wv, 'ra_segs':ra_segs,
                 'title':"Redressement : une seule découpe",
                 'msg':"Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.",'hold':H(2.6)})
-            beats.append({'k':'move','state':stt,'movers':mv,'ra_wv':wv,
+            beats.append({'k':'move','state':stt,'movers':mv,
                 'title':"…le morceau qui dépasse glisse à sa place",
                 'msg':"Le morceau qui dépasse à droite glisse d'un bloc vers la gauche\n(toutes ces pièces subissent la MÊME translation) : on obtient un rectangle de largeur 1.",
                 'labels':[],'hold':H(3.6),'slowmo':1.0})
@@ -684,6 +689,113 @@ def _rect_right_angle(ax, pieces, wv, store, size=0.22):
     store.append(ax.plot([P1[0],P2[0],P3[0]],[P1[1],P2[1],P3[1]],
                          color=INK,lw=1.6,solid_capstyle='round',zorder=8)[0])
 
+def _cut_right_angle(ax, seg, pieces, store, size=0.16, color=ACCENT):
+    """Codage d'angle droit attaché à une vraie extrémité de la coupe rouge.
+
+    La coupe de redressement est perpendiculaire au côté unité. Le petit carré ne
+    doit donc pas flotter au milieu du trait : il doit être ancré à une extrémité
+    du segment rouge, du côté où le carré est contenu dans la figure.
+    """
+    if not seg:
+        return
+
+    def point_in_poly(pt, poly):
+        x, y = pt
+        inside = False
+        n = len(poly)
+        if n < 3:
+            return False
+        j = n - 1
+        for i in range(n):
+            xi, yi = poly[i]
+            xj, yj = poly[j]
+            if (yi > y) != (yj > y):
+                xcross = (xj - xi) * (y - yi) / ((yj - yi) + 1e-15) + xi
+                if x < xcross:
+                    inside = not inside
+            j = i
+        return inside
+
+    polys = [vv for _, (vv, _) in pieces.items() if len(vv) >= 3]
+
+    def in_union(pt):
+        return any(point_in_poly(pt, poly) for poly in polys)
+
+    (x0, y0), (x1, y1) = seg
+    dx = x1 - x0
+    dy = y1 - y0
+    ln = math.hypot(dx, dy)
+    if ln < 1e-6:
+        return
+
+    ux, uy = dx / ln, dy / ln              # direction de la coupe rouge
+    vx0, vy0 = -uy, ux                     # direction perpendiculaire = côté unité, au signe près
+    a = min(size, 0.22 * ln)
+
+    candidates = []
+
+    # On essaie les deux extrémités du segment rouge.
+    # À chaque extrémité, la direction "le long de la coupe" doit entrer dans le segment.
+    endpoint_data = [
+        ((x0, y0), ( ux,  uy)),
+        ((x1, y1), (-ux, -uy)),
+    ]
+
+    for E, along in endpoint_data:
+        ex, ey = E
+        axu, ayu = along
+
+        # On essaie les deux côtés perpendiculaires possibles.
+        for side in (1.0, -1.0):
+            vx, vy = side * vx0, side * vy0
+
+            P = (ex, ey)
+            Q = (ex + a * axu, ey + a * ayu)
+            S = (ex + a * vx,  ey + a * vy)
+            R = (Q[0] + a * vx, Q[1] + a * vy)
+
+            # Points de contrôle strictement dans le petit carré.
+            C  = (ex + 0.50 * a * axu + 0.50 * a * vx,
+                  ey + 0.50 * a * ayu + 0.50 * a * vy)
+            C1 = (ex + 0.30 * a * axu + 0.30 * a * vx,
+                  ey + 0.30 * a * ayu + 0.30 * a * vy)
+            C2 = (ex + 0.70 * a * axu + 0.30 * a * vx,
+                  ey + 0.70 * a * ayu + 0.30 * a * vy)
+            C3 = (ex + 0.30 * a * axu + 0.70 * a * vx,
+                  ey + 0.30 * a * ayu + 0.70 * a * vy)
+            C4 = (ex + 0.70 * a * axu + 0.70 * a * vx,
+                  ey + 0.70 * a * ayu + 0.70 * a * vy)
+
+            controls = (C, C1, C2, C3, C4)
+            score = sum(1 for pt in controls if in_union(pt))
+
+            # Le centre du carré dans la matière est prioritaire.
+            if in_union(C):
+                score += 5
+
+            candidates.append((score, P, Q, R, S))
+
+    if not candidates:
+        return
+
+    candidates.sort(key=lambda z: z[0], reverse=True)
+    score, P, Q, R, S = candidates[0]
+
+    if score <= 0:
+        return
+
+    # On trace un petit carré ouvert sur le sommet P : P→Q→R→S→P.
+    store.append(ax.plot(
+        [P[0], Q[0], R[0], S[0], P[0]],
+        [P[1], Q[1], R[1], S[1], P[1]],
+        color=color,
+        lw=1.8,
+        solid_capstyle='round',
+        solid_joinstyle='round',
+        zorder=9
+    )[0])
+
+
 def _method_draw(ax, patches, annot, msg_a, phase_a, flash, beat, pieces, in_hold, flashinfo, moving=()):
     _draw_state(ax, patches, pieces, top_pids=moving)
     if flash is not None:
@@ -702,10 +814,11 @@ def _method_draw(ax, patches, annot, msg_a, phase_a, flash, beat, pieces, in_hol
     mtext = beat.get('msg','') if beat.get('k')=='show' else ''
     msg_a.set_text(mtext); msg_a.set_visible(bool(mtext))
     _draw_annot(ax, annot, beat, pieces, in_hold)
-    # Codage de l'angle droit : au coin du rectangle obtenu, dès que le redressement est
-    # terminé (pause d'après-glissement), retiré ensuite.
-    if in_hold and beat.get('ra_wv'):
-        _rect_right_angle(ax, pieces, beat['ra_wv'], annot)
+    # Codage de l'angle droit : synchronisé avec les coupures rouges du redressement.
+    # Un seul carré rouge suffit : les autres coupes sont parallèles.
+    if in_hold and beat.get('k') == 'cut' and beat.get('ra_segs'):
+        sg = min(beat['ra_segs'], key=lambda e: (e[0][0] + e[1][0]) / 2)
+        _cut_right_angle(ax, sg, pieces, annot, color=ACCENT)
     # Fraction sur la coupe : visible DÈS l'apparition du trait (tracé + maintien),
     # dessinée APRÈS _draw_annot pour ne pas être effacée par son store.clear().
     flab=beat.get('frac_label')
