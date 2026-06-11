@@ -416,11 +416,11 @@ def method_beats(md, params, detailed=True, label="", intro=None):
     beats.append({'k':'show','state':{0:(pts,color)},
         'title':intro_title,'msg':intro_msg,
         'dims':[{'kind':'hdim','label':f"base ≈ {_fr(blen)}"}], 'hold':H(3.4 if detailed else 2.6)})
-    beats.append({'k':'cut','state':{0:(pts,color)},'segs':[md['MN']],
+    state={md['trap_pid']:(md['trapV'],color), md['ndc_pid']:(md['amnV'],color)}
+    beats.append({'k':'cut','state':{0:(pts,color)},'state_after':_snap(state),'segs':[md['MN']],
         'title':"Découpe par la ligne des milieux",
         'msg':"On joint les milieux des deux autres côtés et on coupe.\nLe petit triangle du haut va pivoter d'un demi-tour.",
         'hold':H(2.6)})
-    state={md['trap_pid']:(md['trapV'],color), md['ndc_pid']:(md['amnV'],color)}
     rot_iso=('rot',math.pi,md['N'][0],md['N'][1])
     _ndcV_landed=_interp_iso(md['amnV'], md['ndcV'], rot_iso, 1.0)  # true endpoint of the rotation
     beats.append({'k':'move','state':_snap(state),
@@ -479,13 +479,15 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                     dx=_cen(af)[0]-_cen(bf)[0]; dy=_cen(af)[1]-_cen(bf)[1]
                     col=state.get(idd,(None,None))[1]; state[idd]=(af,col)
                     pdv=disp.get(idd,(0.0,0.0)); disp[idd]=(pdv[0]+dx,pdv[1]+dy)
-            beats.append({'k':'cut','state':S_before,'segs':cutsegs,
-                'title':"Redressement : une seule découpe",
-                'msg':"Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.",'hold':H(2.6)})
             mv=[]; stt={}
             for pid,(fv,col) in state.items():
                 d=disp.get(pid,(0.0,0.0)); sv=[(x-d[0],y-d[1]) for (x,y) in fv]
                 stt[pid]=(sv,col); mv.append((pid,sv,fv,('trans',d[0],d[1])))
+            # La coupe CRÉE les pièces : elles sont affichées séparées (stt) dès la pause
+            # d'après-coupe, AVANT le moindre glissement.
+            beats.append({'k':'cut','state':S_before,'state_after':_snap(stt),'segs':cutsegs,
+                'title':"Redressement : une seule découpe",
+                'msg':"Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.",'hold':H(2.6)})
             beats.append({'k':'move','state':stt,'movers':mv,
                 'title':"…les morceaux glissent ensemble",
                 'msg':"Les deux morceaux glissent solidairement, d'un seul mouvement :\nle parallélogramme devient un rectangle de largeur exactement 1.",
@@ -507,10 +509,13 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                 'title':t,'msg':m,'hold':H(chold)}
             if last=='shear':
                 cut_beat['frac_label']=frac   # affiche p/q sur le segment de coupe
-            beats.append(cut_beat)
+            # On applique la découpe TOUT DE SUITE, puis on mémorise l'état APRÈS coupe :
+            # les pièces nouvellement créées seront affichées (séparées) pendant la pause.
             for ce in grp:
                 state.pop(ce['parent'],None)
                 for (cid,cv,cc) in ce['children']: state[cid]=(cv,cc)
+            cut_beat['state_after']=_snap(state)
+            beats.append(cut_beat)
         else:
             grp=[]
             while i<len(ev) and ev[i]['t']=='move': grp.append(ev[i]); i+=1
@@ -559,7 +564,7 @@ def _draw_state(ax, patches, pieces):
     for p in patches: p.remove()
     patches.clear()
     for pid,(verts,color) in pieces.items():
-        poly=MPLPoly(verts, closed=True, facecolor=color, edgecolor=INK, linewidth=0.8, joinstyle='round')
+        poly=MPLPoly(verts, closed=True, facecolor=color, edgecolor=INK, linewidth=1.4, joinstyle='round')
         ax.add_patch(poly); patches.append(poly)
 
 def _draw_annot(ax, store, beat, pieces, show):
@@ -598,7 +603,8 @@ def _method_draw(ax, patches, annot, msg_a, phase_a, flash, beat, pieces, in_hol
                 if not sgt: continue
                 (a0,b0),(a1,b1)=sgt; X+=[a0,a1,float('nan')]; Y+=[b0,b1,float('nan')]
             flash.set_data(X,Y); flash.set_alpha(0.9*alpha)
-        else: flash.set_alpha(0.0)
+        else:
+            flash.set_alpha(0.0); flash.set_data([], [])
     phase_a.set_text(beat.get('title','')); msg_a.set_text(beat.get('msg',''))
     _draw_annot(ax, annot, beat, pieces, in_hold)
     # Fraction sur la coupe : visible DÈS l'apparition du trait (tracé + maintien),
@@ -616,6 +622,15 @@ def _method_draw(ax, patches, annot, msg_a, phase_a, flash, beat, pieces, in_hol
                                   fontsize=15, color=ACCENT, family='serif',
                                   weight='bold', zorder=7))
             break
+    # Marque de coupe PERSISTANTE pendant la pause d'après-coupe : la coupe « rouge »
+    # reste visible le temps que les pièces qu'elle vient de créer soient bien vues, AVANT
+    # qu'elles ne glissent (cas des coupes sans étiquette de fraction). 'partout'.
+    if in_hold and beat.get('k')=='cut' and not flab:
+        for sgt in (beat.get('segs') or []):
+            if not sgt: continue
+            (a0,b0),(a1,b1)=sgt
+            annot.append(ax.plot([a0,a1],[b0,b1],color=ACCENT,lw=2.2,alpha=0.80,
+                                 solid_capstyle='round',zorder=6)[0])
 
 def _method_timeline(beats, params):
     for b in beats:
@@ -634,6 +649,10 @@ def _method_state_at(beats, color, T):
             if b['k']=='show': return _snap(b['state']), b, True, None
             if b['k']=='cut':
                 f=min(1.0,max(0.0,local/max(motion,1e-6)))
+                if in_hold and b.get('state_after') is not None:
+                    # Pièces CRÉÉES dès la coupe : on affiche les enfants (séparés), immobiles,
+                    # AVANT tout mouvement. La marque de coupe reste tracée par _method_draw.
+                    return _snap(b['state_after']), b, in_hold, None
                 return _snap(b['state']), b, in_hold, (b.get('segs') or [], f)
             f=min(1.0,max(0.0,local/max(motion,1e-6)))
             cur=_snap(b['state'])
@@ -926,19 +945,49 @@ def _piece_segments(pieces):
             a=v[i]; b=v[(i+1)%n]; segs.append(((a.x,a.y),(b.x,b.y)))
     return segs
 
+def _hex_lerp(c1, c2, t):
+    """Interpolation linéaire entre deux couleurs hex (#rrggbb)."""
+    t=max(0.0,min(1.0,t)); a=c1.lstrip('#'); b=c2.lstrip('#')
+    ar=[int(a[i:i+2],16) for i in (0,2,4)]; br=[int(b[i:i+2],16) for i in (0,2,4)]
+    return '#%02x%02x%02x' % tuple(round(ar[k]+(br[k]-ar[k])*t) for k in range(3))
+
 def build_fusion_scene(params):
+    """Géométrie de la fusion : les pièces communes sous leurs trois poses
+    CONGRUENTES (dans A, dans le rectangle, dans B), recentrées au MÊME endroit
+    (le rectangle, centre (0,H/2)), pour une métamorphose « sur place ».
+    Couleurs : colA = triangle d'origine dans A (chaud) ; colB = triangle dans B (froid)."""
     dA=dissect_polygon(POLY_A, PALETTE_A, "A", max_den=2)
     dB=dissect_polygon(POLY_B, PALETTE_B, "B", max_den=2)
     H=dA['colH']
     com_raw=common_refinement(dA['column'], dB['column'], poly_area(POLY_A))
-    com_loc=common_located(com_raw, dA['column'], dB['column'])
-    com=[([(v.x,v.y) for v in c['rect']], c['color']) for c in com_loc]
-    return dict(H=H, A_segs=_piece_segments(dA['column']), B_segs=_piece_segments(dB['column']),
-                com=com, nA=len(dA['column']), nB=len(dB['column']), ncom=len(com_loc))
+    loc=common_located(com_raw, dA['column'], dB['column'])
+    rawA=[[(v.x,v.y) for v in c['inA']]  for c in loc]
+    rawR=[[(v.x,v.y) for v in c['rect']] for c in loc]
+    rawB=[[(v.x,v.y) for v in c['inB']]  for c in loc]
+    colA=[c['color'] for c in loc]
+    colB=[PALETTE_B[c['bi'] % len(PALETTE_B)] for c in loc]
+    origins=[c['ai'] for c in loc]
+    # recentrage de chaque jeu de poses sur le centre du rectangle (0, H/2)
+    def recenter(raws):
+        pts=[p for poly in raws for p in poly]; bb=_bbox(pts)
+        ox=0.0-(bb[0]+bb[2])/2; oy=H/2-(bb[1]+bb[3])/2
+        return [[(x+ox,y+oy) for (x,y) in poly] for poly in raws]
+    posA=recenter(rawA); posR=recenter(rawR); posB=recenter(rawB)
+    # jeux de coupes (centrés, repère du rectangle [-0.5,0.5]x[0,H])
+    def cc(segs): return [((x0-0.5,y0),(x1-0.5,y1)) for ((x0,y0),(x1,y1)) in segs]
+    Asegs=cc(_piece_segments(dA['column'])); Bsegs=cc(_piece_segments(dB['column']))
+    rectOutline=[((-0.5,0),(0.5,0)),((0.5,0),(0.5,H)),((0.5,H),(-0.5,H)),((-0.5,H),(-0.5,0))]
+    idx=sorted(range(len(loc)), key=lambda i:(origins[i], _centroid(posA[i])[1], _centroid(posA[i])[0]))
+    rank={i:r for r,i in enumerate(idx)}
+    return dict(H=H, posA=posA, posR=posR, posB=posB, colA=colA, colB=colB,
+                Asegs=Asegs, Bsegs=Bsegs, rectOutline=rectOutline, idx=idx, rank=rank,
+                ncom=len(loc), nA=len(dA['column']), nB=len(dB['column']))
 
 def _fusion_phases(sc, params):
     rs=getattr(params,'read_scale',1.0)
-    P=[('apart',3.6*rs),('slide',2.4),('grid',3.8*rs),('fade',1.6),('hold',4.4*rs)]
+    P=[('apart',3.2*rs),('slide',2.4),('neutral',2.8*rs),
+       ('revealA',1.7),('holdA',1.8*rs),('A2rect',4.4),('holdRectA',1.4*rs),
+       ('recolor',2.8),('holdRectB',1.4*rs),('rect2B',4.4),('holdB',3.6*rs)]
     ts=[]; t=0.0
     for nm,du in P: ts.append((nm,t,du)); t+=du
     return ts,t
@@ -949,28 +998,70 @@ _FUS_TXT={
           "À droite : LE MÊME rectangle, découpé selon B (traits bleus)."),
  'slide':("On les superpose",
           "Les deux rectangles sont identiques : largeur 1, même hauteur.\nOn les fait coïncider."),
- 'grid':("Réunion des deux jeux de coupes",
-         "Les coupes de A et de B réunies découpent le rectangle\nen {N} petites pièces communes."),
- 'fade':("Le découpage commun","Ces {N} pièces forment le découpage commun."),
- 'hold':("Le découpage commun",
-         "Ces {N} pièces se réassemblent aussi bien en A qu'en B :\nc'est l'équidécomposition (Wallace–Bolyai–Gerwien)."),
+ 'neutral':("La réunion des deux découpages",
+            "Ensemble, les coupes de A et de B partagent le rectangle\nen {N} pièces communes — pour l'instant SANS couleur."),
+ 'revealA':("Ce sont exactement les pièces de A",
+            "Regroupées par triangle d'origine, ces {N} pièces redonnent la figure A."),
+ 'holdA':("La figure A, colorée par sa triangulation",
+          "Chaque teinte chaude correspond à un triangle de A."),
+ 'A2rect':("La figure A se transforme en la fusion",
+           "Les pièces de A glissent et tournent (sans déformation)\net forment le rectangle commun, aux couleurs de A."),
+ 'holdRectA':("La fusion, aux couleurs de A",
+              "Le rectangle commun, colorié selon la triangulation de A."),
+ 'recolor':("On passe aux couleurs de B",
+            "Les MÊMES pièces, recoloriées selon la triangulation de la figure B."),
+ 'holdRectB':("La fusion, aux couleurs de B",
+              "Le même rectangle commun, colorié selon la triangulation de B."),
+ 'rect2B':("La figure B est reconstituée",
+           "Les pièces repartent et se regroupent en la figure B, aux couleurs de B."),
+ 'holdB':("Équidécomposition",
+          "Les {N} mêmes pièces composent A ET B :\nc'est l'équidécomposition (Wallace–Bolyai–Gerwien)."),
 }
 
-def _fusion_state(ts, sc, T):
-    oxC=-0.5; S=1.3
-    for nm,t0,du in ts:
-        if T<t0+du or (nm,t0,du)==ts[-1]:
-            loc=min(1.0,max(0.0,(T-t0)/max(du,1e-6)))
-            if nm=='apart': return oxC-S,oxC+S,0.0,nm,S
-            if nm=='slide':
-                e=_smooth(loc); return oxC-S+e*S, oxC+S-e*S, 0.0, nm, S
-            if nm=='grid': return oxC,oxC,0.0,nm,S
-            if nm=='fade': return oxC,oxC,_smooth(loc),nm,S
-            return oxC,oxC,1.0,nm,S
-    return oxC,oxC,1.0,'hold',S
+def _fusion_frame(sc, ts, T):
+    """État de dessin à l'instant T : poses, couleurs, opacités, décalages des grilles."""
+    n=len(sc['posR']); SUP=1.15
+    nm,t0,du=ts[-1]
+    for cand in ts:
+        if T < cand[1]+cand[2]:
+            nm,t0,du=cand; break
+    loc=min(1.0,max(0.0,(T-t0)/max(du,1e-6)))
+    # progression DÉCALÉE par pièce (vague groupée par triangle, de bas en haut)
+    S0=0.42
+    def prog(i):
+        st=(sc['rank'][i]/max(n-1,1))*S0
+        return _smooth(min(1.0,max(0.0,(loc-st)/(1-S0))))
+    poses=sc['posR']; fills=sc['colA']; pa=0.0
+    gA=0.0; gB=0.0; gal=0.0; plus=0.0
+    if nm=='apart':
+        gA=-SUP; gB=SUP; gal=1.0; plus=1.0
+    elif nm=='slide':
+        e=_smooth(loc); gA=-SUP*(1-e); gB=SUP*(1-e); gal=1.0; plus=1.0-e
+    elif nm=='neutral':
+        gal=1.0
+    elif nm=='revealA':
+        e=_smooth(loc); gal=1.0-e; pa=e; poses=sc['posA']; fills=sc['colA']
+    elif nm=='holdA':
+        pa=1.0; poses=sc['posA']; fills=sc['colA']
+    elif nm=='A2rect':
+        poses=[interp_pose(sc['posA'][i],sc['posR'][i],prog(i)) for i in range(n)]
+        fills=sc['colA']; pa=1.0
+    elif nm=='holdRectA':
+        poses=sc['posR']; fills=sc['colA']; pa=1.0
+    elif nm=='recolor':
+        e=_smooth(loc); poses=sc['posR']
+        fills=[_hex_lerp(sc['colA'][i],sc['colB'][i],e) for i in range(n)]; pa=1.0
+    elif nm=='holdRectB':
+        poses=sc['posR']; fills=sc['colB']; pa=1.0
+    elif nm=='rect2B':
+        poses=[interp_pose(sc['posR'][i],sc['posB'][i],prog(i)) for i in range(n)]
+        fills=sc['colB']; pa=1.0
+    else:  # holdB
+        poses=sc['posB']; fills=sc['colB']; pa=1.0
+    return dict(nm=nm, poses=poses, fills=fills, pa=pa, gA=gA, gB=gB, gal=gal, plus=plus)
 
 def _fusion_setup(sc, params):
-    H=sc['H']; bb=(-1.8,0.0,1.8,H)
+    H=sc['H']; bb=(-1.85,-0.25,1.85,H+0.25)
     fig,ax,phase=_setup_fig_simple(bb, params, "Fusion des deux découpages (rectangle de largeur 1)",
                                    mx=0.7, my_top=1.4, my_bot=2.0, show_ruler=False)
     msg=fig.text(0.5,0.06,"",ha='center',va='center',fontsize=12.5,color=INK,family='serif',
@@ -978,31 +1069,29 @@ def _fusion_setup(sc, params):
     return fig,ax,phase,msg
 
 def _fusion_artists(ax, sc):
-    H=sc['H']
-    outline=[((0,0),(1,0)),((1,0),(1,H)),((1,H),(0,H)),((0,H),(0,0))]
-    fillA=MPLPoly([(-1.8,0),(-0.8,0),(-0.8,H),(-1.8,H)],closed=True,facecolor='#f5eedd',edgecolor=INK,lw=1.5,alpha=0.7); ax.add_patch(fillA)
-    fillB=MPLPoly([(0.8,0),(1.8,0),(1.8,H),(0.8,H)],closed=True,facecolor='#f5eedd',edgecolor=INK,lw=1.5,alpha=0.7); ax.add_patch(fillB)
-    lcA=LineCollection([],colors=ACUT,linewidths=0.75); ax.add_collection(lcA)
-    lcB=LineCollection([],colors=BCUT,linewidths=0.75); ax.add_collection(lcB)
+    H=sc['H']; n=len(sc['posR'])
+    lcA=LineCollection([],colors=ACUT,linewidths=0.85); ax.add_collection(lcA)
+    lcB=LineCollection([],colors=BCUT,linewidths=0.85); ax.add_collection(lcB)
+    patches=[]
+    for i in range(n):
+        pp=MPLPoly(sc['posR'][i],closed=True,facecolor=sc['colA'][i],edgecolor=INK,
+                   linewidth=0.5,joinstyle='round',alpha=0.0)
+        ax.add_patch(pp); patches.append(pp)
     plus=ax.text(0,H/2,"+",ha='center',va='center',fontsize=30,color=SYM,family='serif',weight='bold')
-    return dict(outline=outline,fillA=fillA,fillB=fillB,lcA=lcA,lcB=lcB,plus=plus,com=[])
+    return dict(lcA=lcA,lcB=lcB,patches=patches,plus=plus)
 
 def _fusion_draw(ax, A, sc, ts, T):
-    oxA,oxB,fill,nm,S=_fusion_state(ts,sc,T); H=sc['H']
-    def tr(segs,ox): return [(((x0+ox),y0),((x1+ox),y1)) for ((x0,y0),(x1,y1)) in segs]
-    def rectpoly(ox): return [(ox,0),(1+ox,0),(1+ox,H),(ox,H)]
-    A['fillA'].set_xy(rectpoly(oxA)); A['fillB'].set_xy(rectpoly(oxB))
-    A['fillA'].set_alpha(0.7*(1-fill)); A['fillB'].set_alpha(0.7*(1-fill))
-    A['lcA'].set_segments(tr(sc['A_segs']+A['outline'],oxA)); A['lcA'].set_alpha(1.0-0.9*fill)
-    A['lcB'].set_segments(tr(sc['B_segs']+A['outline'],oxB)); A['lcB'].set_alpha(1.0-0.9*fill)
-    A['plus'].set_alpha(max(0.0,min(1.0,abs(oxB-oxA)/(2*S))))
-    for pp in A['com']: pp.remove()
-    A['com'].clear()
-    if fill>0:
-        for verts,color in sc['com']:
-            vv=[(x-0.5,y) for (x,y) in verts]
-            pp=MPLPoly(vv,closed=True,facecolor=color,edgecolor=INK,lw=0.35,alpha=fill); ax.add_patch(pp); A['com'].append(pp)
-    t,m=_FUS_TXT[nm]; return t, m.replace("{N}",str(sc['ncom']))
+    fr=_fusion_frame(sc,ts,T)
+    def shift(segs,ox): return [((x0+ox,y0),(x1+ox,y1)) for ((x0,y0),(x1,y1)) in segs]
+    grid=sc['rectOutline']
+    A['lcA'].set_segments(shift(sc['Asegs']+grid, fr['gA'])); A['lcA'].set_alpha(fr['gal'])
+    A['lcB'].set_segments(shift(sc['Bsegs']+grid, fr['gB'])); A['lcB'].set_alpha(fr['gal'])
+    A['plus'].set_alpha(fr['plus'])
+    pa=fr['pa']; poses=fr['poses']; fills=fr['fills']
+    for i,pp in enumerate(A['patches']):
+        pp.set_xy(poses[i]); pp.set_facecolor(fills[i]); pp.set_alpha(pa)
+        pp.set_linewidth(0.5 if pa>0.01 else 0.0)
+    t,m=_FUS_TXT[fr['nm']]; return t, m.replace("{N}",str(sc['ncom']))
 
 def render_fusion(params):
     os.makedirs(params.out_dir, exist_ok=True)
@@ -1011,7 +1100,7 @@ def render_fusion(params):
     nframes=int(math.ceil(total*params.fps))
     def update(fr):
         t,m=_fusion_draw(ax,A,sc,ts,fr/params.fps); phase.set_text(t); msg.set_text(m)
-        return [A['fillA'],A['fillB'],A['lcA'],A['lcB'],A['plus'],phase,msg]+A['com']
+        return [A['lcA'],A['lcB'],A['plus'],phase,msg]+A['patches']
     anim=FuncAnimation(fig,update,frames=nframes,interval=1000/params.fps,blit=False)
     outs=[]
     if params.make_mp4:
@@ -1023,7 +1112,7 @@ def render_fusion(params):
     plt.close(fig)
     return outs,total,sc
 
-def dump_fusion_keyframes(params, fractions=(0.06,0.30,0.55,0.80,0.99)):
+def dump_fusion_keyframes(params, fractions=(0.06,0.20,0.34,0.46,0.60,0.74,0.88,0.99)):
     os.makedirs("/home/claude/preview",exist_ok=True)
     sc=build_fusion_scene(params); ts,total=_fusion_phases(sc,params)
     out=[]
@@ -1033,7 +1122,6 @@ def dump_fusion_keyframes(params, fractions=(0.06,0.30,0.55,0.80,0.99)):
         pth=f"/home/claude/preview/fusion_kf_{int(fr*100):03d}.png"
         fig.savefig(pth,dpi=90,facecolor=PAPER); plt.close(fig); out.append(pth)
     return out,total,sc
-
 
 
 # ════════════════════════ SCÈNE « INTRO » : polygones, même aire, théorème, triangulation ════════════════════════
