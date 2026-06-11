@@ -6,26 +6,27 @@
 > Les indications *en italique* décrivent ce que l'on voit à l'écran.
 > Les textes en clair sont à lire à voix haute.
 > ⏸ = moment de silence (laissez l'animation respirer).
+> L'affichage à l'écran est volontairement **minimal** : un petit indicateur « étape k/6 · … » en bas situe l'avancement dans la démarche. Tout le commentaire est porté par cette narration (les longues légendes du bas ont été retirées).
 
 ---
 
 ## 00:00 — PROLOGUE : le sens facile
 
-*Cinq triangles colorés forment une maison.*
+*Six triangles équilatéraux colorés, numérotés 1 à 6, forment un parallélogramme.*
 
-Voici cinq pièces. Elles forment un polygone — ici, une maison.
+Voici six pièces identiques — six triangles équilatéraux. Assemblées, elles forment un parallélogramme.
 
-*Les pièces glissent et tournent pour former un trapèze.*
+*Les pièces glissent et pivotent — sans jamais se retourner — pour former un hexagone régulier.*
 
-On les déplace. Même résultat : un autre polygone, mais toujours les **mêmes cinq pièces**.
+On les déplace : chacune tourne d'un sixième de tour au plus, et glisse à sa place. Mêmes six pièces, mais cette fois un **hexagone**.
 
-*Nouvelle réorganisation en flèche.*
+*Les six triangles s'écartent du centre et se réassemblent en une étoile à six branches.*
 
-Encore une forme différente. ⏸
+Encore une forme différente — une **étoile**. ⏸
 
-*Les trois formes s'estompent doucement.*
+*L'aire affichée, « 6 triangles — constante », ne bouge jamais.*
 
-C'est évident : l'aire ne change pas quand on réarrange des pièces. Elle vaut toujours la somme des aires des pièces, quelle que soit la forme obtenue.
+C'est évident : réarranger des pièces ne change pas l'aire. Elle vaut toujours la somme des aires des pièces, quelle que soit la forme obtenue.
 
 Mais la question réciproque est bien plus difficile. On se donne **deux polygones de même aire** — ils peuvent être complètement différents. Peut-on **toujours** découper l'un en morceaux pour reconstituer exactement l'autre ? C'est ça, le vrai problème.
 
@@ -93,9 +94,9 @@ Une seule coupe verticale sépare la partie qui dépasse.
 
 Tout ce bloc subit **exactement la même translation** : il glisse donc d'un seul tenant, et vient se loger dans le creux de gauche. Ce glissement horizontal ne déforme rien. ⏸
 
-*Rotation finale : le rectangle se pose à l'horizontale.*
+*Rotation finale : le rectangle se pose à l'horizontale. Un petit carré d'angle droit marque brièvement un coin du rectangle, puis s'efface.*
 
-On pose le rectangle bien droit. **Largeur exactement 1**, hauteur égale à l'aire du triangle. ⏸
+On pose le rectangle bien droit. Le petit carré confirme l'**angle droit** : c'est bien un rectangle — **largeur exactement 1**, hauteur égale à l'aire du triangle. ⏸
 
 *Vue d'ensemble avec la vignette du pentagone.*
 
@@ -177,9 +178,9 @@ Une coupe sépare la bande qui dépasse à droite.
 
 Toutes ces pièces subissent **la même translation** : elles glissent donc **ensemble, d'un bloc**, et viennent se loger à gauche. ⏸ C'est exactement la figure 8.4 : on n'a pas déplacé les pièces une par une, mais le morceau qui dépasse **en entier**. Aucune déformation — translation pure.
 
-*Rotation finale, rectangle posé droit.*
+*Rotation finale, rectangle posé droit. Le carré d'angle droit apparaît brièvement à un coin.*
 
-On pose le rectangle droit. **Largeur exactement 1.** ⏸
+On pose le rectangle droit — l'angle droit marqué confirme le rectangle. **Largeur exactement 1.** ⏸
 
 ---
 
@@ -193,9 +194,9 @@ Les quatre rectangles de B s'empilent. La colonne de B a exactement la même lar
 
 ## 04:40 — FUSION : le découpage commun
 
-*À gauche, le rectangle de A (traits orange). À droite, le même rectangle découpé selon B (traits bleus).*
+*À gauche, le rectangle de A (traits orange). Au centre, le symbole **∪**. À droite, le même rectangle découpé selon B (traits bleus).*
 
-Voici les deux colonnes — c'est **le même rectangle de largeur 1**, découpé de deux façons différentes : les traits orange montrent les coupes de A, les traits bleus celles de B.
+Voici les deux colonnes — c'est **le même rectangle de largeur 1**, découpé de deux façons différentes : les traits orange montrent les coupes de A, les traits bleus celles de B. Le symbole **∪** rappelle qu'on va prendre la **réunion** des deux découpages.
 
 *Les deux rectangles se rapprochent et se superposent.*
 
@@ -249,9 +250,9 @@ Mêmes pièces, autre destination. ⏸
 
 ## 05:22 — RÉASSEMBLAGE B → A *(si rendu)*
 
-*À gauche B, au centre le rectangle, à droite A. Couleurs de B.*
+*Disposition identique au sens précédent : A à gauche, le rectangle au centre, B à droite. Mais cette fois les pièces partent de **B, à droite** (aux couleurs de B) et reconstituent **A, à gauche**.*
 
-Et dans l'autre sens : les pièces quittent B et reconstituent A. Le théorème est **symétrique** — l'équidécomposition va dans les deux sens. ⏸
+Et dans l'autre sens : les pièces quittent B, à droite, traversent le rectangle de largeur 1, et reconstituent A, à gauche. C'est exactement le film précédent **rejoué à l'envers**, avec les couleurs de B. Le théorème est **symétrique** — l'équidécomposition va dans les deux sens. ⏸
 
 ---
 
@@ -263,7 +264,7 @@ Et dans l'autre sens : les pièces quittent B et reconstituent A. Le théorème 
 
 | Timecode | Clip | Durée |
 |---|---|---|
-| 00:00 | Prologue | 15 s |
+| 00:00 | Prologue (6 triangles équilatéraux : parallélogramme → hexagone → étoile) | 16 s |
 | 00:15 | Intro | 23 s |
 | 00:38 | Méthode A1 (détaillé, h=1) | 47 s |
 | 01:24 | Méthode A2 (rapide) | 17 s |
@@ -276,9 +277,14 @@ Et dans l'autre sens : les pièces quittent B et reconstituent A. Le théorème 
 | 04:36 | Colonne B | 4 s |
 | 04:40 | Fusion | 30 s |
 | 05:09 | Réassemblage A→B | 14 s |
-| 05:22 | Réassemblage B→A | ~14 s |
+| 05:22 | Réassemblage B→A (B à droite, rejeu inversé) | ~14 s |
+
+> Les timecodes sont indicatifs (≈ ±2 s) : le prologue dure désormais ~16 s, ce qui peut décaler légèrement la suite.
 
 **Points d'attention à l'oral :**
+- Le prologue utilise 6 triangles équilatéraux : tous les mouvements sont des rotations ≤ 60° dans le plan — **aucun retournement**, rien « en entourloupe ».
+- L'affichage du bas est minimal (indicateur « étape k/6 ») : c'est la **narration** qui porte tout le propos ; n'hésitez pas à développer.
 - Les triangles détaillés (A1, B1, B4) demandent le plus de narration ; laisser les silences ⏸ pour que les animations individuelles respirent.
-- Empilements/redressement : les pièces bougent désormais par GROUPES (même transformation = même mouvement). Laisser chaque bloc finir son glissement avant de parler du suivant.
-- La fusion est le climax : ralentir la voix sur « les 81 mêmes pièces ».
+- Empilements/redressement : les pièces bougent par GROUPES (même transformation = même mouvement), et **le morceau qui bouge passe toujours au premier plan**. Laisser chaque bloc finir son glissement avant de parler du suivant.
+- Redressement : un **codage d'angle droit** apparaît au coin du rectangle obtenu, puis s'efface.
+- La fusion est le climax : ralentir la voix sur « les 81 mêmes pièces » ; le symbole **∪** marque la réunion des deux découpages.

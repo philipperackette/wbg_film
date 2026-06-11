@@ -130,27 +130,31 @@ def build_scene(params: AnimParams, direction="AB"):
     colB=[PALETTE_B[c["bi"] % len(PALETTE_B)] for c in loc]     # couleur = triangle de B
     origA=[c["ai"] for c in loc]; origB=[c["bi"] for c in loc]
 
+    # Disposition FIXE et identique pour les deux sens : A à gauche, rectangle au milieu,
+    # B à droite. Le clip BA est le REJEU À L'ENVERS du clip AB (mêmes positions), avec
+    # les couleurs de B : les pièces partent de B (à droite) et reconstituent A (à gauche).
+    rawL,rawM,rawN = rawA,rawR,rawB
+    labL,labN = "A","B"
     if direction=="AB":
-        rawL,rawM,rawN = rawA,rawR,rawB; colors=colA; orig=origA
-        labL,labN = "A","B"
+        colors=colA; orig=origA; suffix=""
         title="Découpe, glissement, rotation : A et B, les mêmes pièces"
-        capLM="Chaque pièce glisse et tourne : A → rectangle de largeur 1"
-        capMN="Les mêmes pièces repartent : rectangle de largeur 1 → B"
-        capLN="Les mêmes pièces : A → B"
-        holdL="Les {n} pièces communes, disposées comme dans A"
-        holdN="Les mêmes pièces réassemblées en B — CQFD"
-        suffix=""
-    else:  # "BA" : symétrique, couleurs de B
-        rawL,rawM,rawN = rawB,rawR,rawA; colors=colB; orig=origB
-        labL,labN = "B","A"
-        title="Découpe, glissement, rotation : B et A, les mêmes pièces"
-        capLM="Chaque pièce glisse et tourne : B → rectangle de largeur 1"
-        capMN="Les mêmes pièces repartent : rectangle de largeur 1 → A"
-        capLN="Les mêmes pièces : B → A"
-        holdL="Les {n} pièces communes, disposées comme dans B"
-        holdN="Les mêmes pièces réassemblées en A — CQFD"
-        suffix="_BA"
-    holdM="Les mêmes pièces réunies en rectangle de largeur 1"
+        path=["L","M","N"]
+        cap={("L","M"):"Chaque pièce glisse et tourne : A → rectangle de largeur 1",
+             ("M","N"):"Les mêmes pièces repartent : rectangle de largeur 1 → B",
+             ("L","N"):"Les mêmes pièces : A → B"}
+        hold={"L":"Les {n} pièces communes, disposées comme dans A",
+              "M":"Les mêmes pièces réunies en rectangle de largeur 1",
+              "N":"Les mêmes pièces réassemblées en B — CQFD"}
+    else:  # "BA" : même disposition, rejeu inversé, couleurs de B
+        colors=colB; orig=origB; suffix="_BA"
+        title="Sens inverse : B → A, les mêmes pièces (couleurs de B)"
+        path=["N","M","L"]
+        cap={("N","M"):"Chaque pièce glisse et tourne : B → rectangle de largeur 1",
+             ("M","L"):"Les mêmes pièces repartent : rectangle de largeur 1 → A",
+             ("N","L"):"Les mêmes pièces : B → A"}
+        hold={"N":"Les {n} pièces communes, disposées comme dans B",
+              "M":"Les mêmes pièces réunies en rectangle de largeur 1",
+              "L":"Les mêmes pièces réassemblées en A — CQFD"}
 
     # bboxes globales par station, pour centrer verticalement chaque forme
     def gbb(raws):
@@ -163,11 +167,13 @@ def build_scene(params: AnimParams, direction="AB"):
         ox=X0-bb[0]; oy=H/2 - (bb[1]+(bb[3]-bb[1])/2)   # centre vertical dans [0,H]
         return [[(x+ox, y+oy) for (x,y) in poly] for poly in raws]
     posL=offset(rawL,bL,xL); posM=offset(rawM,bM,xM); posN=offset(rawN,bN,xN)
+    posByKey={"L":posL,"M":posM,"N":posN}
 
-    # ordre d'animation : par triangle d'origine puis de bas en haut (station de départ)
+    # ordre d'animation : par triangle d'origine puis de bas en haut (station de DÉPART)
+    start_pos=posByKey[path[0]]
     idx=list(range(len(loc)))
     idx.sort(key=lambda i:(orig[i] if params.group_by_origin else 0,
-                           _centroid(posL[i])[1], _centroid(posL[i])[0]))
+                           _centroid(start_pos[i])[1], _centroid(start_pos[i])[0]))
 
     def dur(p1,p2):
         c1=_centroid(p1); c2=_centroid(p2)
@@ -185,19 +191,22 @@ def build_scene(params: AnimParams, direction="AB"):
 
     n=len(loc)
     seq=[]; T=0.0
-    seq.append(("hold", T, params.pause_start, ("L", holdL.format(n=n)))); T+=params.pause_start
+    seq.append(("hold", T, params.pause_start, (path[0], hold[path[0]].format(n=n)))); T+=params.pause_start
     if params.show_rect_phase:
-        s,d,L=plan(posL,posM); seq.append(("move",T,L,(posL,posM,s,d,capLM))); T+=L
-        seq.append(("hold",T,params.pause_mid, ("M", holdM)));               T+=params.pause_mid
-        s,d,L=plan(posM,posN); seq.append(("move",T,L,(posM,posN,s,d,capMN))); T+=L
+        a,b=path[0],path[1]; s,d,L=plan(posByKey[a],posByKey[b])
+        seq.append(("move",T,L,(posByKey[a],posByKey[b],s,d,cap[(a,b)]))); T+=L
+        seq.append(("hold",T,params.pause_mid, (path[1], hold[path[1]])));  T+=params.pause_mid
+        a,b=path[1],path[2]; s,d,L=plan(posByKey[a],posByKey[b])
+        seq.append(("move",T,L,(posByKey[a],posByKey[b],s,d,cap[(a,b)]))); T+=L
     else:
-        s,d,L=plan(posL,posN); seq.append(("move",T,L,(posL,posN,s,d,capLN))); T+=L
-    seq.append(("hold",T,params.pause_end, ("N", holdN)));                    T+=params.pause_end
+        a,b=path[0],path[2]; s,d,L=plan(posByKey[a],posByKey[b])
+        seq.append(("move",T,L,(posByKey[a],posByKey[b],s,d,cap[(a,b)]))); T+=L
+    seq.append(("hold",T,params.pause_end, (path[2], hold[path[2]])));         T+=params.pause_end
     total=T
 
     allpts=[p for Pset in (posL,posM,posN) for poly in Pset for p in poly]
     bx=_bbox(allpts)
-    frame={"xlim":(bx[0]-0.6, bx[2]+0.6), "ylim":(bx[1]-0.8, bx[3]+0.9),
+    frame={"xlim":(bx[0]-0.6, bx[2]+0.6), "ylim":(bx[1]-1.1, bx[3]+0.9),
            "stations":[(xL+wL/2,labL,13),(xM+wM/2,"rectangle de largeur 1",11),
                        (xN+wN/2,labN,13)], "H":H}
 
@@ -246,16 +255,17 @@ def _setup_fig(scene, params):
              ha='center',va='center',fontsize=16,color=INK,family='serif',weight='bold')
     phase=fig.text(0.5,0.895,"",ha='center',va='center',fontsize=12,color=MUTED,
                    family='serif',style='italic')
-    fr=scene["frame"]; ybl=fr["ylim"][0]+0.25
+    fr=scene["frame"]; ybl=fr["ylim"][0]+0.92
     for (xc,lab,fs) in fr["stations"]:
         ax.text(xc, ybl, lab, ha='center', va='top', fontsize=fs,
                 color=INK, family='serif', weight='bold')
     # règle 1 unité (bas-gauche)
-    rx=fr["xlim"][0]+0.4; ry=fr["ylim"][0]+0.45
+    rx=fr["xlim"][0]+0.4; ry=fr["ylim"][0]+0.52
     ax.plot([rx,rx+1],[ry,ry],color=ACCENT,lw=1.6)
     ax.plot([rx,rx],[ry-0.08,ry+0.08],color=ACCENT,lw=1.6)
     ax.plot([rx+1,rx+1],[ry-0.08,ry+0.08],color=ACCENT,lw=1.6)
     ax.text(rx+0.5,ry-0.18,"1 unité",ha='center',va='top',fontsize=8,color=ACCENT,family='monospace')
+    _step_bar(fig, 6)
     return fig,ax,patches,phase
 
 
@@ -536,10 +546,16 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                 stt[pid]=(sv,col); mv.append((pid,sv,fv,('trans',d[0],d[1])))
             # La coupe CRÉE les pièces : elles sont affichées séparées (stt) dès la pause
             # d'après-coupe, AVANT le moindre glissement.
+            # direction du côté unité (parallèle aux coupes) : sert à coder l'angle droit
+            # du rectangle obtenu (le côté unité devient ⊥ à la base).
+            wv=None
+            for sg in cutsegs:
+                (x0,y0),(x1,y1)=sg; ln=math.hypot(x1-x0,y1-y0)
+                if ln>1e-6: wv=((x1-x0)/ln,(y1-y0)/ln); break
             beats.append({'k':'cut','state':S_before,'state_after':_snap(stt),'segs':cutsegs,
                 'title':"Redressement : une seule découpe",
                 'msg':"Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.",'hold':H(2.6)})
-            beats.append({'k':'move','state':stt,'movers':mv,
+            beats.append({'k':'move','state':stt,'movers':mv,'ra_wv':wv,
                 'title':"…le morceau qui dépasse glisse à sa place",
                 'msg':"Le morceau qui dépasse à droite glisse d'un bloc vers la gauche\n(toutes ces pièces subissent la MÊME translation) : on obtient un rectangle de largeur 1.",
                 'labels':[],'hold':H(3.6),'slowmo':1.0})
@@ -611,11 +627,17 @@ def _setup_fig_simple(bbox, params, title, mx=0.6, my_top=1.4, my_bot=0.9, show_
         ax.text(rx+0.5,ry+0.13,"1 unité",ha='center',va='bottom',fontsize=8,color=MUTED,family='monospace')
     return fig,ax,phase
 
-def _draw_state(ax, patches, pieces):
+def _draw_state(ax, patches, pieces, top_pids=()):
     for p in patches: p.remove()
     patches.clear()
-    for pid,(verts,color) in pieces.items():
-        poly=MPLPoly(verts, closed=True, facecolor=color, edgecolor=INK, linewidth=1.4, joinstyle='round')
+    top_pids=set(top_pids)
+    # pièces immobiles d'abord, puis les pièces EN MOUVEMENT par-dessus (1er plan)
+    order=[pid for pid in pieces if pid not in top_pids]+[pid for pid in pieces if pid in top_pids]
+    for rank,pid in enumerate(order):
+        verts,color=pieces[pid]
+        zz = 5 if pid in top_pids else 2          # le morceau qui bouge passe devant
+        poly=MPLPoly(verts, closed=True, facecolor=color, edgecolor=INK, linewidth=1.4,
+                     joinstyle='round', zorder=zz)
         ax.add_patch(poly); patches.append(poly)
 
 def _draw_annot(ax, store, beat, pieces, show):
@@ -645,8 +667,25 @@ def _draw_annot(ax, store, beat, pieces, show):
         else:
             store.append(ax.text((x0+x1)/2, y1+0.25, txt, ha='center', va='bottom', fontsize=12, color=DIMCOL, family='serif', weight='600'))
 
-def _method_draw(ax, patches, annot, msg_a, phase_a, flash, beat, pieces, in_hold, flashinfo):
-    _draw_state(ax, patches, pieces)
+def _rect_right_angle(ax, pieces, wv, store, size=0.22):
+    """Code d'angle droit au coin du rectangle obtenu après redressement : un petit carré
+    aligné sur le côté unité (wv) et sur la base perpendiculaire (no). Affiché juste après
+    la coupe, retiré ensuite (store nettoyé à chaque frame)."""
+    if not wv or not pieces: return
+    wx,wy=wv; nx,ny=-wy,wx                      # base ⊥ au côté unité
+    pts=[v for _,(vv,_) in pieces.items() for v in vv]
+    if not pts: return
+    pw=[x*wx+y*wy for (x,y) in pts]; pn=[x*nx+y*ny for (x,y) in pts]
+    aw=min(pw); an=min(pn)                       # coin bas-gauche dans le repère (wv,no)
+    cx=aw*wx+an*nx; cy=aw*wy+an*ny
+    P1=(cx+size*wx, cy+size*wy)
+    P2=(cx+size*wx+size*nx, cy+size*wy+size*ny)
+    P3=(cx+size*nx, cy+size*ny)
+    store.append(ax.plot([P1[0],P2[0],P3[0]],[P1[1],P2[1],P3[1]],
+                         color=INK,lw=1.6,solid_capstyle='round',zorder=8)[0])
+
+def _method_draw(ax, patches, annot, msg_a, phase_a, flash, beat, pieces, in_hold, flashinfo, moving=()):
+    _draw_state(ax, patches, pieces, top_pids=moving)
     if flash is not None:
         if flashinfo:
             segs,f=flashinfo; alpha=math.sin(max(0,min(1,f))*math.pi); X=[];Y=[]
@@ -656,8 +695,17 @@ def _method_draw(ax, patches, annot, msg_a, phase_a, flash, beat, pieces, in_hol
             flash.set_data(X,Y); flash.set_alpha(0.9*alpha)
         else:
             flash.set_alpha(0.0); flash.set_data([], [])
-    phase_a.set_text(beat.get('title','')); msg_a.set_text(beat.get('msg',''))
+    phase_a.set_text(beat.get('title',''))
+    # Bandeau du bas minimaliste : le texte verbeux n'apparaît que sur les écrans
+    # d'explication ('show'). Pendant l'action (coupe/glissement) le bas reste épuré
+    # (l'indicateur d'étape suffit ; le commentaire est porté par le script lu).
+    mtext = beat.get('msg','') if beat.get('k')=='show' else ''
+    msg_a.set_text(mtext); msg_a.set_visible(bool(mtext))
     _draw_annot(ax, annot, beat, pieces, in_hold)
+    # Codage de l'angle droit : au coin du rectangle obtenu, dès que le redressement est
+    # terminé (pause d'après-glissement), retiré ensuite.
+    if in_hold and beat.get('ra_wv'):
+        _rect_right_angle(ax, pieces, beat['ra_wv'], annot)
     # Fraction sur la coupe : visible DÈS l'apparition du trait (tracé + maintien),
     # dessinée APRÈS _draw_annot pour ne pas être effacée par son store.clear().
     flab=beat.get('frac_label')
@@ -706,16 +754,16 @@ def _method_state_at(beats, color, T):
     for b in beats:
         if T<b['t1'] or b is beats[-1]:
             local=T-b['t0']; motion=b['motion']; in_hold=local>=motion-1e-9
-            if b['k']=='show': return _snap(b['state']), b, True, None
+            if b['k']=='show': return _snap(b['state']), b, True, None, set()
             if b['k']=='cut':
                 f=min(1.0,max(0.0,local/max(motion,1e-6)))
                 if in_hold and b.get('state_after') is not None:
                     # Pièces CRÉÉES dès la coupe : on affiche les enfants (séparés), immobiles,
                     # AVANT tout mouvement. La marque de coupe reste tracée par _method_draw.
-                    return _snap(b['state_after']), b, in_hold, None
-                return _snap(b['state']), b, in_hold, (b.get('segs') or [], f)
+                    return _snap(b['state_after']), b, in_hold, None, set()
+                return _snap(b['state']), b, in_hold, (b.get('segs') or [], f), set()
             f=min(1.0,max(0.0,local/max(motion,1e-6)))
-            cur=_snap(b['state'])
+            cur=_snap(b['state']); moving=set()
             mgroups=b.get('mgroups')
             if mgroups is not None:
                 for k in b.get('mstatic',[]):
@@ -726,11 +774,13 @@ def _method_state_at(beats, color, T):
                     for k in idxs:
                         pid,bf,af,iso=b['movers'][k]
                         cur[pid]=(_interp_iso(bf,af,iso,fk), cur.get(pid,(None,color))[1])
+                        if 1e-6<fk<1-1e-6: moving.add(pid)   # ce morceau bouge -> 1er plan
             else:                                      # together : tout bouge ensemble
                 for (pid,bf,af,iso) in b['movers']:
                     cur[pid]=(_interp_iso(bf,af,iso,f), cur.get(pid,(None,color))[1])
-            return cur, b, in_hold, None
-    return _snap(beats[-1]['state']), beats[-1], True, None
+                    if not in_hold: moving.add(pid)
+            return cur, b, in_hold, None, moving
+    return _snap(beats[-1]['state']), beats[-1], True, None, set()
 
 def _method_bbox(beats):
     pts=[]
@@ -822,6 +872,7 @@ def render_method(params, tri=None, color=None, detailed=True, suffix="", label=
         "Comment un triangle devient un rectangle de largeur 1", mx=1.2, my_top=1.5, my_bot=1.9)
     msg=fig.text(0.5,0.075,"",ha='center',va='center',fontsize=13.0,color=INK,family='serif',
                  linespacing=1.5, bbox=dict(boxstyle='round,pad=0.6', fc='#fbf7ec', ec='#ddd6c4', alpha=0.92))
+    _step_bar(fig, 3)
     patches=[]; annot=[]; flash=Line2D([],[],color=ACCENT,lw=2.6,alpha=0.0,solid_capstyle='round'); ax.add_line(flash)
     # ── vignette : figure source avec triangle actif mis en valeur ──
     if fig_vignette is not None:
@@ -848,8 +899,8 @@ def render_method(params, tri=None, color=None, detailed=True, suffix="", label=
         ins.patch.set_edgecolor('#C0B8A8'); ins.patch.set_linewidth(0.7)
     nframes=int(math.ceil(total*params.fps))
     def update(fr):
-        pieces,beat,in_hold,flashinfo=_method_state_at(beats, md['color'], fr/params.fps)
-        _method_draw(ax, patches, annot, msg, phase, flash, beat, pieces, in_hold, flashinfo)
+        pieces,beat,in_hold,flashinfo,moving=_method_state_at(beats, md['color'], fr/params.fps)
+        _method_draw(ax, patches, annot, msg, phase, flash, beat, pieces, in_hold, flashinfo, moving)
         return patches+annot+[flash,phase,msg]
     anim=FuncAnimation(fig,update,frames=nframes,interval=1000/params.fps,blit=False)
     outs=[]
@@ -874,8 +925,8 @@ def dump_method_keyframes(params, fractions=(0.04,0.16,0.30,0.46,0.62,0.78,0.93,
         msg=fig.text(0.5,0.075,"",ha='center',va='center',fontsize=13.0,color=INK,family='serif',
                      linespacing=1.5, bbox=dict(boxstyle='round,pad=0.6', fc='#fbf7ec', ec='#ddd6c4', alpha=0.92))
         patches=[]; annot=[]; flash=Line2D([],[],color=ACCENT,lw=2.6,alpha=0.0); ax.add_line(flash)
-        pieces,beat,in_hold,flashinfo=_method_state_at(beats, md['color'], fr*total)
-        _method_draw(ax, patches, annot, msg, phase, flash, beat, pieces, in_hold, flashinfo)
+        pieces,beat,in_hold,flashinfo,moving=_method_state_at(beats, md['color'], fr*total)
+        _method_draw(ax, patches, annot, msg, phase, flash, beat, pieces, in_hold, flashinfo, moving)
         pth=f"/home/claude/preview/method_kf_{int(fr*100):03d}.png"
         fig.savefig(pth,dpi=90,facecolor=PAPER); plt.close(fig); out.append(pth)
     return out,total,beats
@@ -923,6 +974,7 @@ def render_column(params, poly=None, palette=None,
                 allpts.append((x+sc['col_dx'][i][0], y+sc['col_dx'][i][1]))
     bb=_bbox(allpts)
     fig,ax,phase=_setup_fig_simple(bb, params, scene_title)
+    _step_bar(fig, 4)
     ax.text(sc['colx']+0.5, sc['total_h']+0.3, "colonne de largeur 1",
             ha='center', va='bottom', fontsize=11, color=INK, family='serif', weight='bold')
     fills=[]
@@ -1135,8 +1187,9 @@ def _fusion_setup(sc, params):
     H=sc['H']; bb=(-1.85,-0.25,1.85,H+0.25)
     fig,ax,phase=_setup_fig_simple(bb, params, "Fusion des deux découpages (rectangle de largeur 1)",
                                    mx=0.7, my_top=1.4, my_bot=2.0, show_ruler=False)
-    msg=fig.text(0.5,0.06,"",ha='center',va='center',fontsize=12.5,color=INK,family='serif',
+    msg=fig.text(0.5,0.092,"",ha='center',va='center',fontsize=12.5,color=INK,family='serif',
                  linespacing=1.5, bbox=dict(boxstyle='round,pad=0.6',fc='#fbf7ec',ec='#ddd6c4',alpha=0.92))
+    _step_bar(fig, 5)
     return fig,ax,phase,msg
 
 def _fusion_artists(ax, sc):
@@ -1148,7 +1201,7 @@ def _fusion_artists(ax, sc):
         pp=MPLPoly(sc['posR'][i],closed=True,facecolor=sc['colA'][i],edgecolor=INK,
                    linewidth=0.5,joinstyle='round',alpha=0.0)
         ax.add_patch(pp); patches.append(pp)
-    plus=ax.text(0,H/2,"+",ha='center',va='center',fontsize=30,color=SYM,family='serif',weight='bold')
+    plus=ax.text(0,H/2,"∪",ha='center',va='center',fontsize=34,color=SYM,family='serif',weight='bold')
     return dict(lcA=lcA,lcB=lcB,patches=patches,plus=plus)
 
 def _fusion_draw(ax, A, sc, ts, T):
@@ -1291,8 +1344,9 @@ def render_intro(params):
     sc=build_intro_scene(params); ts,total=_intro_phases(params); TXT=_intro_text(sc)
     fig,ax,phase=_setup_fig_simple(sc['bbox'], params, "Wallace–Bolyai–Gerwien : découper A, réassembler B",
                                    mx=0.7, my_top=1.5, my_bot=1.9)
-    msg=fig.text(0.5,0.075,"",ha='center',va='center',fontsize=13.0,color=INK,family='serif',linespacing=1.5,
+    msg=fig.text(0.5,0.092,"",ha='center',va='center',fontsize=13.0,color=INK,family='serif',linespacing=1.5,
                  bbox=dict(boxstyle='round,pad=0.6',fc='#fbf7ec',ec='#ddd6c4',alpha=0.92))
+    _step_bar(fig, 2)
     cA=PALETTE_A[2]; cB=PALETTE_B[0]
     fillA=MPLPoly(sc['A'],closed=True,facecolor=cA,edgecolor=INK,lw=1.6); ax.add_patch(fillA)
     fillB=MPLPoly(sc['B'],closed=True,facecolor=cB,edgecolor=INK,lw=1.6); ax.add_patch(fillB)
@@ -1343,65 +1397,77 @@ def render_intro(params):
         anim.save(path,writer=PillowWriter(fps=params.gif_fps),dpi=max(60,params.dpi-30)); outs.append(path)
     plt.close(fig); return outs,total,sc
 
+_STEPS = ["Le sens facile", "Le théorème", "Triangle → rectangle",
+          "Empiler en colonne", "Superposer les découpages (∪)", "Réassembler A ↔ B"]
+
+def _step_bar(fig, idx):
+    """Indicateur minimaliste de position dans la démarche, en bas de l'écran."""
+    n=len(_STEPS); name=_STEPS[idx-1]
+    pips="".join("●" if k<idx else "○" for k in range(n))
+    fig.text(0.5, 0.045, pips, ha='center', va='center', fontsize=11,
+             color=ACCENT, family='monospace', alpha=0.9)
+    fig.text(0.5, 0.018, f"étape {idx}/{n}   ·   {name}", ha='center', va='center',
+             fontsize=10.5, color=MUTED, family='serif', alpha=0.9)
+
+def _align_tri(src, dst):
+    """dst avec sommets permutés circulairement (orientation CONSERVÉE) pour minimiser
+    la rotation src→dst. Pour un triangle équilatéral (symétrie d'ordre 3) toute rotation
+    se ramène ainsi à ≤ 60° : aucune pièce ne fait de demi-tour ni de retournement."""
+    best=dst; ba=float('inf')
+    for r in range(3):
+        d=dst[r:]+dst[:r]; a=abs(_rel_angle(src,d))
+        if a<ba: ba=a; best=d
+    return best
+
 def _prologue_arrangements():
-    """5 triangles isocèles congruents (base 2, hauteur 1) TOUS de même orientation (△ vers le haut),
-    formant 3 polygones de formes clairement différentes : escalier, bande, pyramide.
-    Les pièces étant toutes orientées pareil, les transitions entre arrangements sont
-    de PURES TRANSLATIONS — aucune rotation, aucun retournement."""
-    def tri(bx, by):
-        return [(bx, by), (bx+2, by), (bx+1, by+1)]
-
-    # Arrangement 1 : escalier diagonal (5 marches montant vers la droite)
-    escal = [tri(0,0), tri(2,0), tri(2,1), tri(4,1), tri(4,2)]
-
-    # Arrangement 2 : bande plate (5 triangles en rang horizontal)
-    band  = [tri(0,0), tri(2,0), tri(4,0), tri(6,0), tri(8,0)]
-
-    # Arrangement 3 : pyramide (3 à la base, 2 au 2e étage, forme triangulaire)
-    pyr   = [tri(0,0), tri(2,0), tri(4,0), tri(1,1), tri(3,1)]
-
+    """6 triangles équilatéraux congruents (côté s) formant 3 figures nettement distinctes :
+    parallélogramme → hexagone → étoile (fin sur l'étoile). Combiné à _align_tri, chaque
+    transition est translation + rotation ≤ 60° dans le plan — jamais de retournement."""
+    s=1.5; h=s*math.sqrt(3)/2
+    V=[(s*math.cos(math.radians(60*k)), s*math.sin(math.radians(60*k))) for k in range(6)]
+    ad=lambda a,b:(a[0]+b[0], a[1]+b[1])
+    def ccw(t):
+        (x0,y0),(x1,y1),(x2,y2)=t
+        return t if (x1-x0)*(y2-y0)-(x2-x0)*(y1-y0)>0 else [t[0],t[2],t[1]]
+    hexg=[ccw([(0.0,0.0),V[k],V[(k+1)%6]]) for k in range(6)]            # hexagone : 6 coins au centre
+    star=[ccw([V[k],V[(k+1)%6],ad(V[k],V[(k+1)%6])]) for k in range(6)]  # étoile : 6 pointes dehors
+    U =[[(j,0.0),(j+1,0.0),(j+0.5,h)] for j in range(3)]                 # parallélogramme (bande △▽)
+    Dn=[[(j+0.5,h),(j+1.5,h),(j+1.0,0.0)] for j in range(3)]
+    para=[ccw(t) for t in [U[0],Dn[0],U[1],Dn[1],U[2],Dn[2]]]
     def center(tris):
-        pts = [p for t in tris for p in t]
-        cx = sum(x for x,y in pts) / len(pts)
-        cy = sum(y for x,y in pts) / len(pts)
+        pts=[p for t in tris for p in t]
+        cx=sum(x for x,y in pts)/len(pts); cy=sum(y for x,y in pts)/len(pts)
         return [[(x-cx, y-cy) for x,y in t] for t in tris]
-
-    return [center(escal), center(band), center(pyr)]
+    return [center(para), center(hexg), center(star)]
 
 def render_prologue(params):
-    """Sens facile : on réarrange les MÊMES morceaux en plusieurs polygones ; l'aire ne change pas."""
+    """Sens facile : on réarrange les MÊMES 6 triangles équilatéraux en plusieurs figures ;
+    l'aire ne change pas. Mouvements purement plans (≤60°), sans retournement."""
     os.makedirs(params.out_dir, exist_ok=True)
-    arrs = _prologue_arrangements()
-    cols = [PALETTE_A[2], PALETTE_B[0], PALETTE_A[1], PALETTE_B[2], PALETTE_A[4]]
+    arrs = _prologue_arrangements()            # [parallélogramme, hexagone, étoile]
+    cols = [PALETTE_A[2], PALETTE_B[0], PALETTE_A[1], PALETTE_B[2], PALETTE_A[4], PALETTE_B[1]]
     rs = getattr(params, 'read_scale', 1.0)
-    seq = [('h0',2.6*rs,0,0),('m01',1.6*rs,0,1),('h1',2.2*rs,1,1),
-           ('m12',1.6*rs,1,2),('h2',2.4*rs,2,2),('cv',5.0*rs,2,2)]
+    seq = [('h0',2.6*rs,0,0),('m01',2.0*rs,0,1),('h1',2.2*rs,1,1),
+           ('m12',2.0*rs,1,2),('h2',2.4*rs,2,2),('cv',5.0*rs,2,2)]
     ts = []; t = 0.0
     for nm,du,a,b in seq: ts.append((nm,t,du,a,b)); t += du
     total = t
-    bbox = (-5.5,-2.2,5.5,2.6)
+    bbox = (-3.4,-3.1,3.4,3.1)
     fig,ax,phase = _setup_fig_simple(bbox, params,
         "Le sens facile : réarranger des pièces ne change pas l'aire",
         mx=0.2, my_top=0.6, my_bot=0.6)
-    msg = fig.text(0.5,0.075,"",ha='center',va='center',fontsize=13.0,color=INK,
-                   family='serif',linespacing=1.5,
-                   bbox=dict(boxstyle='round,pad=0.6',fc='#fbf7ec',ec='#ddd6c4',alpha=0.92))
+    _step_bar(fig, 1)
     patches = [MPLPoly([(0,0)],closed=True,facecolor=cols[i],edgecolor=INK,lw=1.6)
-               for i in range(5)]
+               for i in range(6)]
     for p in patches: ax.add_patch(p)
-    nums = [ax.text(0,0,str(i+1),ha='center',va='center',fontsize=11,color=INK,family='serif')
-            for i in range(5)]
-    areatag = ax.text(0,-2.55,"aire = 5 (5 triangles)",ha='center',va='top',
+    nums = [ax.text(0,0,str(i+1),ha='center',va='center',fontsize=10,color=INK,family='serif')
+            for i in range(6)]
+    areatag = ax.text(0,-2.95,"aire = 6 triangles — constante",ha='center',va='top',
                       fontsize=12.5,color=ACCENT,family='serif',weight='bold')
-    TXT = {
-        'h0': ("Le sens facile", "On part de 5 pièces identiques qui forment un escalier."),
-        'm01': ("Le sens facile", "On les déplace — chacune glisse vers sa nouvelle place…"),
-        'h1': ("…une autre forme", "Mêmes 5 pièces : une bande à plat, bien différente de l'escalier."),
-        'm12': ("…encore une autre", "On les déplace à nouveau…"),
-        'h2': ("Toujours la même aire", "Une pyramide, cette fois. L'aire = somme des 5 triangles. C'est ÉVIDENT."),
-        'cv': ("Le vrai problème : la réciproque",
-               "L'inverse est bien plus dur : deux polygones de MÊME aire,\n"
-               "peut-on TOUJOURS découper l'un pour reconstituer EXACTEMENT l'autre ?"),
+    TITLE = {
+        'h0': "Le sens facile", 'm01': "On les déplace…", 'h1': "…une autre forme",
+        'm12': "…encore une autre", 'h2': "Toujours la même aire",
+        'cv': "Le vrai problème : et la réciproque ?",
     }
     def pos_at(T):
         for nm,t0,du,a,b in ts:
@@ -1415,17 +1481,16 @@ def render_prologue(params):
         fade = 1.0
         if nm == 'cv':
             t0 = _t0c(ts,'cv'); fade = max(0.25, 1.0-0.75*_smooth(min(1.0,(T-t0)/2.0)))
-        for i in range(5):
+        for i in range(6):
             ta = arrs[a][i]; tb = arrs[b][i]
-            # mouvement PLAN rigide (translation du centroïde + rotation), pas de lerp
-            # sommet-à-sommet qui ferait « retourner » la pièce dans l'espace.
-            interp = interp_pose(ta, tb, f) if a != b else list(ta)
+            # rotation ≤ 60° (via _align_tri) + translation : mouvement plan, pas de retournement
+            interp = interp_pose(ta, _align_tri(ta, tb), f) if a != b else list(ta)
             patches[i].set_xy(interp); patches[i].set_alpha(fade)
             cx = sum(x for x,y in interp)/3; cy = sum(y for x,y in interp)/3
             nums[i].set_position((cx,cy)); nums[i].set_alpha(fade)
         areatag.set_alpha(fade)
-        tt,mm = TXT[nm]; phase.set_text(tt); msg.set_text(mm)
-        return patches+nums+[areatag,phase,msg]
+        phase.set_text(TITLE[nm])
+        return patches+nums+[areatag,phase]
     anim = FuncAnimation(fig,update,frames=nframes,interval=1000/params.fps,blit=False)
     outs = []
     if params.make_mp4:

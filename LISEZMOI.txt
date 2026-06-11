@@ -1,0 +1,20 @@
+WBG — film d'équidécoupage (Wallace–Bolyai–Gerwien)
+====================================================
+
+Lancer :   bash setup.sh        (sortie : out/wbg_video_complete.mp4)
+setup.sh crée l'env conda, vérifie que les corrections sont présentes,
+puis appelle build_all.py. Les 6 .py doivent rester dans ce dossier.
+
+Modifs de cette livraison (6 points) :
+  1. Prologue = 6 triangles ÉQUILATÉRAUX : parallélogramme → hexagone → étoile.
+     Mouvements plans, rotations ≤ 60° (symétrie d'ordre 3) — aucun retournement.
+  2. Bandeau du bas minimaliste : indicateur « étape k/6 · … » dans chaque scène ;
+     les longues légendes n'apparaissent plus que sur les écrans d'explication.
+  3. Le morceau qui bouge passe TOUJOURS au premier plan (z-order).
+  4. Codage d'angle droit au coin du rectangle obtenu après redressement
+     (affiché juste après la coupe, retiré ensuite).
+  5. Fusion : symbole « ∪ » (réunion) au lieu de « + ».
+  6. Réassemblage B→A : B à droite, A à gauche — rejeu à l'envers du sens A→B.
+
+Fichiers modifiés p/r à la version précédente : wbg_animate.py, setup.sh.
+(wbg_core.py, wbg_pipeline.py, build_all.py, build_resume.py : inchangés.)

@@ -36,11 +36,16 @@ assert m and float(m.group(1)) >= 1.2,            "bords des pieces trop fins"
 assert "state_after" in src_beats,                "REGRESSION: pieces non creees a la coupe"
 assert "Marque de coupe PERSISTANTE" in src_draw, "REGRESSION: marque de coupe persistante absente"
 assert "recolor" in src_fus,                      "REGRESSION: recoloriage A->B absent (fusion)"
-assert "interp_pose(ta, tb, f)" in src_pro,       "REGRESSION: prologue non plan (retournement 3D)"
-assert "escalier" in inspect.getsource(W._prologue_arrangements).lower(), "REGRESSION: ancienne maison avec retournement 180deg"
+assert "interp_pose(ta, _align_tri(ta, tb), f)" in src_pro, "REGRESSION: prologue sans alignement <=60deg (retournement possible)"
+assert "étoile" in inspect.getsource(W._prologue_arrangements).lower(), "REGRESSION: prologue pas en triangles equilateraux (hexagone/etoile)"
+assert "_step_bar" in src_pro, "REGRESSION: indicateur d'etape minimaliste absent"
 assert '"BA"' in src_scene,                       "REGRESSION: sens symetrique B->A absent"
 assert "_mover_groups" in inspect.getsource(W._method_timeline), "REGRESSION: dissection pas groupee par transformation"
-print("OK — coupes persistantes, fusion A->B, prologue plan, sens B->A, dissection groupee par transformation")
+assert '"∪"' in inspect.getsource(W._fusion_artists), "REGRESSION: union ∪ absente (fusion)"
+assert "top_pids" in src_ds, "REGRESSION: piece mobile pas au premier plan"
+assert "ra_wv" in src_draw, "REGRESSION: codage d'angle droit du redressement absent"
+assert 'path=["N","M","L"]' in src_scene, "REGRESSION: BA pas en rejeu inverse (B a droite, A a gauche)"
+print("OK — coupes persistantes, fusion A->B, prologue equilateral plan, etape minimaliste, 1er plan mobile, angle droit, union, B->A inverse, dissection groupee")
 PYCHK
 
 mkdir -p out
