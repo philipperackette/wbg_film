@@ -12,17 +12,17 @@
 
 ## 00:00 — PROLOGUE : le sens facile
 
-*Six triangles équilatéraux colorés, numérotés 1 à 6, forment un parallélogramme.*
+*Six triangles équilatéraux colorés, numérotés 1 à 6, forment un hexagone régulier.*
 
-Voici six pièces identiques — six triangles équilatéraux. Assemblées, elles forment un parallélogramme.
+Voici six pièces identiques — six triangles équilatéraux. Assemblées, elles forment un **hexagone**.
 
-*Les pièces glissent et pivotent — sans jamais se retourner — pour former un hexagone régulier.*
+*Les pièces glissent et pivotent — sans jamais se retourner — pour former une silhouette en zigzag, pleine, sans trou.*
 
-On les déplace : chacune tourne d'un sixième de tour au plus, et glisse à sa place. Mêmes six pièces, mais cette fois un **hexagone**.
+On les déplace : chacune tourne d'un sixième de tour au plus, et glisse à sa place. Mêmes six pièces, mais cette fois un **zigzag**.
 
-*Les six triangles s'écartent du centre et se réassemblent en une étoile à six branches.*
+*Les six triangles quittent le zigzag et se réassemblent en un parallélogramme plein.*
 
-Encore une forme différente — une **étoile**. ⏸
+Encore une forme différente — un **parallélogramme**. ⏸
 
 *L'aire affichée, « 6 triangles — constante », ne bouge jamais.*
 
@@ -264,7 +264,7 @@ Et dans l'autre sens : les pièces quittent B, à droite, traversent le rectangl
 
 | Timecode | Clip | Durée |
 |---|---|---|
-| 00:00 | Prologue (6 triangles équilatéraux : parallélogramme → hexagone → étoile) | 16 s |
+| 00:00 | Prologue (6 triangles équilatéraux : hexagone → zigzag plein → parallélogramme) | 16 s |
 | 00:15 | Intro | 23 s |
 | 00:38 | Méthode A1 (détaillé, h=1) | 47 s |
 | 01:24 | Méthode A2 (rapide) | 17 s |
@@ -282,7 +282,7 @@ Et dans l'autre sens : les pièces quittent B, à droite, traversent le rectangl
 > Les timecodes sont indicatifs (≈ ±2 s) : le prologue dure désormais ~16 s, ce qui peut décaler légèrement la suite.
 
 **Points d'attention à l'oral :**
-- Le prologue utilise 6 triangles équilatéraux : tous les mouvements sont des rotations ≤ 60° dans le plan — **aucun retournement**, rien « en entourloupe ».
+- Le prologue utilise 6 triangles équilatéraux : hexagone plein, zigzag plein sans trou, puis parallélogramme plein ; tous les mouvements sont des rotations ≤ 60° dans le plan — **aucun retournement**, rien « en entourloupe ».
 - L'affichage du bas est minimal (indicateur « étape k/6 ») : c'est la **narration** qui porte tout le propos ; n'hésitez pas à développer.
 - Les triangles détaillés (A1, B1, B4) demandent le plus de narration ; laisser les silences ⏸ pour que les animations individuelles respirent.
 - Empilements/redressement : les pièces bougent par GROUPES (même transformation = même mouvement), et **le morceau qui bouge passe toujours au premier plan**. Laisser chaque bloc finir son glissement avant de parler du suivant.
