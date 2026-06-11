@@ -1534,7 +1534,7 @@ def _align_tri(src, dst):
 
 def _prologue_arrangements():
     """6 triangles équilatéraux congruents (côté s) formant 3 figures pleines :
-    parallélogramme → hexagone → zigzag/éclair.
+    hexagone → zigzag/éclair → parallélogramme.
 
     Point important : les trois figures sont des polyiamants pleins, sans trou et sans
     chevauchement. Combiné à _align_tri, chaque transition est translation + rotation
@@ -1592,13 +1592,13 @@ def _prologue_arrangements():
         pts=[p for t in tris for p in t]
         cx=sum(x for x,y in pts)/len(pts); cy=sum(y for x,y in pts)/len(pts)
         return [[(x-cx, y-cy) for x,y in t] for t in tris]
-    return [center(para), center(hexg), center(zig)]
+    return [center(hexg), center(zig), center(para)]
 
 def render_prologue(params):
     """Sens facile : on réarrange les MÊMES 6 triangles équilatéraux en plusieurs figures ;
     l'aire ne change pas. Mouvements purement plans (≤60°), sans retournement."""
     os.makedirs(params.out_dir, exist_ok=True)
-    arrs = _prologue_arrangements()            # [parallélogramme, hexagone, zigzag/éclair]
+    arrs = _prologue_arrangements()            # [hexagone, zigzag/éclair, parallélogramme]
     cols = [PALETTE_A[2], PALETTE_B[0], PALETTE_A[1], PALETTE_B[2], PALETTE_A[4], PALETTE_B[1]]
     rs = getattr(params, 'read_scale', 1.0)
     seq = [('h0',2.6*rs,0,0),('m01',2.0*rs,0,1),('h1',2.2*rs,1,1),
@@ -1619,8 +1619,8 @@ def render_prologue(params):
     areatag = ax.text(0,-2.95,"aire = 6 triangles — constante",ha='center',va='top',
                       fontsize=12.5,color=ACCENT,family='serif',weight='bold')
     TITLE = {
-        'h0': "Le sens facile", 'm01': "On les déplace…", 'h1': "…une autre forme",
-        'm12': "…encore une autre", 'h2': "Un zigzag plein, sans trou",
+        'h0': "Le sens facile", 'm01': "On les déplace…", 'h1': "Un zigzag plein, sans trou",
+        'm12': "…encore une autre", 'h2': "Un parallélogramme plein",
         'cv': "Le vrai problème : et la réciproque ?",
     }
     def pos_at(T):
