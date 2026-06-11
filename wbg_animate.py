@@ -380,6 +380,21 @@ def _beat_dur(movers, params):
         d=max(d, dist/params.trans_speed, ang/params.rot_speed)
     return d
 
+_SEQ_GAP = 0.14   # petit temps mort entre deux pièces déplacées successivement (s)
+
+def _mover_schedule(movers, params):
+    """Programme SÉQUENTIEL : une seule pièce bouge à la fois, dans l'ordre des movers.
+    Renvoie (starts, durs, total) en secondes (avant facteur slowmo)."""
+    starts=[]; durs=[]; t=0.0
+    for k,(pid,b,a,iso) in enumerate(movers):
+        if k>0: t+=_SEQ_GAP
+        cb=_centroid(b); ca=_centroid(a)
+        dist=math.hypot(ca[0]-cb[0], ca[1]-cb[1])
+        ang=abs(math.degrees(iso[1])) if iso[0]=='rot' else 0.0
+        du=max(dist/params.trans_speed, ang/params.rot_speed, params.min_move)
+        starts.append(t); durs.append(du); t+=du
+    return starts, durs, t
+
 def build_method(tri, color, max_den=2):
     """Construit triangle->parallélogramme (calculé) puis enregistre la suite de la chaîne."""
     pts=list(tri)
@@ -507,9 +522,9 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                 'title':"Redressement : une seule découpe",
                 'msg':"Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.",'hold':H(2.6)})
             beats.append({'k':'move','state':stt,'movers':mv,
-                'title':"…les morceaux glissent ensemble",
-                'msg':"Les deux morceaux glissent solidairement, d'un seul mouvement :\nle parallélogramme devient un rectangle de largeur exactement 1.",
-                'labels':[],'hold':H(3.6),'slowmo':1.5})
+                'title':"…les morceaux se glissent à leur place",
+                'msg':"Chaque morceau qui dépasse vient se placer, un par un :\nle parallélogramme devient un rectangle de largeur exactement 1.",
+                'labels':[],'hold':H(3.6),'slowmo':1.0})
             last='par-rect'; continue
         if ev[i]['t']=='cut':
             grp=[]
@@ -550,7 +565,7 @@ def method_beats(md, params, detailed=True, label="", intro=None):
     ang=-math.atan2(rB[1]-rA[1], rB[0]-rA[0])
     if abs(ang)>1e-4:
         movers=[(pid, v, _rotate_pts(v,ang,rA[0],rA[1]), ('rot',ang,rA[0],rA[1])) for pid,(v,c) in state.items()]
-        beats.append({'k':'move','state':_snap(state),'movers':movers,
+        beats.append({'k':'move','state':_snap(state),'movers':movers,'together':True,
             'title':"On oriente le rectangle","msg":"On tourne le rectangle pour le poser bien droit.",'hold':H(2.2)})
         for pid,(v,c) in list(state.items()): state[pid]=(_rotate_pts(v,ang,rA[0],rA[1]), c)
     area=sum(_area_tup(v) for _,(v,_) in state.items())
@@ -652,7 +667,15 @@ def _method_draw(ax, patches, annot, msg_a, phase_a, flash, beat, pieces, in_hol
 
 def _method_timeline(beats, params):
     for b in beats:
-        if b['k']=='move': b['motion']=_beat_dur(b['movers'], params)*b.get('slowmo',1.0)
+        if b['k']=='move':
+            sm=b.get('slowmo',1.0)
+            if b.get('together'):                      # bloc rigide : tout bouge ensemble
+                b['motion']=_beat_dur(b['movers'], params)*sm
+                b.pop('mstart',None); b.pop('mdur',None)
+            else:                                      # dissection : une pièce à la fois
+                starts,durs,total=_mover_schedule(b['movers'], params)
+                b['mstart']=[s*sm for s in starts]; b['mdur']=[d*sm for d in durs]
+                b['motion']=total*sm
         elif b['k']=='cut': b['motion']=params.cut_dur
         else: b['motion']=0.0
         b['dur']=b['motion']+b.get('hold',0.0)
@@ -674,8 +697,14 @@ def _method_state_at(beats, color, T):
                 return _snap(b['state']), b, in_hold, (b.get('segs') or [], f)
             f=min(1.0,max(0.0,local/max(motion,1e-6)))
             cur=_snap(b['state'])
-            for (pid,bf,af,iso) in b['movers']:
-                cur[pid]=(_interp_iso(bf,af,iso,f), cur.get(pid,(None,color))[1])
+            mstart=b.get('mstart'); mdur=b.get('mdur')
+            for k,(pid,bf,af,iso) in enumerate(b['movers']):
+                if mstart is not None:
+                    s=mstart[k]; d=mdur[k]
+                    fk = 0.0 if local<=s else (1.0 if local>=s+d else (local-s)/d)
+                else:
+                    fk=f
+                cur[pid]=(_interp_iso(bf,af,iso,fk), cur.get(pid,(None,color))[1])
             return cur, b, in_hold, None
     return _snap(beats[-1]['state']), beats[-1], True, None
 
