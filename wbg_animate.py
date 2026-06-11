@@ -1420,31 +1420,72 @@ def _align_tri(src, dst):
     return best
 
 def _prologue_arrangements():
-    """6 triangles équilatéraux congruents (côté s) formant 3 figures nettement distinctes :
-    parallélogramme → hexagone → étoile (fin sur l'étoile). Combiné à _align_tri, chaque
-    transition est translation + rotation ≤ 60° dans le plan — jamais de retournement."""
+    """6 triangles équilatéraux congruents (côté s) formant 3 figures pleines :
+    parallélogramme → hexagone → zigzag/éclair.
+
+    Point important : les trois figures sont des polyiamants pleins, sans trou et sans
+    chevauchement. Combiné à _align_tri, chaque transition est translation + rotation
+    ≤ 60° dans le plan — jamais de retournement."""
     s=1.5; h=s*math.sqrt(3)/2
     V=[(s*math.cos(math.radians(60*k)), s*math.sin(math.radians(60*k))) for k in range(6)]
-    ad=lambda a,b:(a[0]+b[0], a[1]+b[1])
     def ccw(t):
         (x0,y0),(x1,y1),(x2,y2)=t
         return t if (x1-x0)*(y2-y0)-(x2-x0)*(y1-y0)>0 else [t[0],t[2],t[1]]
-    hexg=[ccw([(0.0,0.0),V[k],V[(k+1)%6]]) for k in range(6)]            # hexagone : 6 coins au centre
-    star=[ccw([V[k],V[(k+1)%6],ad(V[k],V[(k+1)%6])]) for k in range(6)]  # étoile : 6 pointes dehors
-    U =[[(j,0.0),(j+1,0.0),(j+0.5,h)] for j in range(3)]                 # parallélogramme (bande △▽)
-    Dn=[[(j+0.5,h),(j+1.5,h),(j+1.0,0.0)] for j in range(3)]
-    para=[ccw(t) for t in [U[0],Dn[0],U[1],Dn[1],U[2],Dn[2]]]
+
+    # 1) Parallélogramme plein : trois losanges côte à côte, chaque losange étant
+    # découpé en deux triangles équilatéraux. Contrairement à l'ancienne version,
+    # on utilise bien le pas s partout : les 6 triangles sont équilatéraux.
+    para=[]
+    for j in range(3):
+        A=(j*s,0.0); B=((j+1)*s,0.0)
+        C=(j*s+s/2,h); D=((j+1)*s+s/2,h)
+        para.extend([ccw([A,B,C]), ccw([B,D,C])])
+
+    # 2) Hexagone régulier plein : les 6 triangles ont un sommet commun au centre.
+    hexg=[ccw([(0.0,0.0),V[k],V[(k+1)%6]]) for k in range(6)]
+
+    # 3) Zigzag / éclair plein : une silhouette brisée, sans trou.
+    # On évite volontairement la bande droite de 6 triangles, qui ressemble trop
+    # à un simple parallélogramme allongé.
+    def P(i,j):
+        # Réseau triangulaire : le niveau j est décalé d'un demi-côté.
+        return (s*(i + 0.5*j), h*j)
+
+    def U(i,j):
+        # Triangle pointant vers le haut.
+        return ccw([P(i,j), P(i+1,j), P(i,j+1)])
+
+    def D(i,j):
+        # Triangle pointant vers le bas.
+        return ccw([P(i+1,j), P(i,j+1), P(i+1,j+1)])
+
+    # Vrai zigzag plein : deux losanges en bas, puis un coude qui remonte.
+    # Les 6 triangles sont toujours équilatéraux, de même taille, et adjacents.
+    #
+    # Schéma approximatif :
+    #
+    #           /\
+    #          /__\
+    #      /\  /\
+    #     /__\/__\
+    #
+    zig = [
+        U(0,0), D(0,0),
+        U(1,0), D(1,0),
+        U(1,1), D(1,1),
+    ]
+
     def center(tris):
         pts=[p for t in tris for p in t]
         cx=sum(x for x,y in pts)/len(pts); cy=sum(y for x,y in pts)/len(pts)
         return [[(x-cx, y-cy) for x,y in t] for t in tris]
-    return [center(para), center(hexg), center(star)]
+    return [center(para), center(hexg), center(zig)]
 
 def render_prologue(params):
     """Sens facile : on réarrange les MÊMES 6 triangles équilatéraux en plusieurs figures ;
     l'aire ne change pas. Mouvements purement plans (≤60°), sans retournement."""
     os.makedirs(params.out_dir, exist_ok=True)
-    arrs = _prologue_arrangements()            # [parallélogramme, hexagone, étoile]
+    arrs = _prologue_arrangements()            # [parallélogramme, hexagone, zigzag/éclair]
     cols = [PALETTE_A[2], PALETTE_B[0], PALETTE_A[1], PALETTE_B[2], PALETTE_A[4], PALETTE_B[1]]
     rs = getattr(params, 'read_scale', 1.0)
     seq = [('h0',2.6*rs,0,0),('m01',2.0*rs,0,1),('h1',2.2*rs,1,1),
@@ -1466,7 +1507,7 @@ def render_prologue(params):
                       fontsize=12.5,color=ACCENT,family='serif',weight='bold')
     TITLE = {
         'h0': "Le sens facile", 'm01': "On les déplace…", 'h1': "…une autre forme",
-        'm12': "…encore une autre", 'h2': "Toujours la même aire",
+        'm12': "…encore une autre", 'h2': "Un zigzag plein, sans trou",
         'cv': "Le vrai problème : et la réciproque ?",
     }
     def pos_at(T):
