@@ -1344,39 +1344,29 @@ def render_intro(params):
     plt.close(fig); return outs,total,sc
 
 def _prologue_arrangements():
-    """5 triangles isocèles congruents (base 2, hauteur 1, aire 1 chacun) formant
-    3 polygones connexes clairement différents : maison, losange/trapèze, flèche."""
-    # Les 5 pièces numérotées dans chaque configuration.
-    # Maison : corps carré 2×2 (4 triangles sur les diagonales) + toit isocèle
-    house = [
-        [(0,0),(2,0),(1,1)],   # 1 bas
-        [(2,0),(2,2),(1,1)],   # 2 droite
-        [(2,2),(0,2),(1,1)],   # 3 haut
-        [(0,2),(0,0),(1,1)],   # 4 gauche
-        [(0,2),(2,2),(1,3)],   # 5 toit
-    ]
-    # Trapèze : rangée alternée haut/bas (5 triangles en zigzag)
-    trapeze = [
-        [(0,0),(2,0),(1,1)],   # 1 pointe haut
-        [(1,1),(3,1),(2,0)],   # 2 pointe bas
-        [(2,0),(4,0),(3,1)],   # 3 pointe haut
-        [(3,1),(5,1),(4,0)],   # 4 pointe bas
-        [(4,0),(6,0),(5,1)],   # 5 pointe haut
-    ]
-    # Flèche : pentagone pointant à droite (carré 2×2 + pointe droite)
-    arrow = [
-        [(0,0),(2,0),(1,1)],   # 1 bas
-        [(0,2),(2,2),(1,1)],   # 2 haut (inversé)
-        [(0,0),(0,2),(1,1)],   # 3 gauche
-        [(2,0),(2,2),(1,1)],   # 4 centre
-        [(2,0),(2,2),(3,1)],   # 5 pointe droite
-    ]
+    """5 triangles isocèles congruents (base 2, hauteur 1) TOUS de même orientation (△ vers le haut),
+    formant 3 polygones de formes clairement différentes : escalier, bande, pyramide.
+    Les pièces étant toutes orientées pareil, les transitions entre arrangements sont
+    de PURES TRANSLATIONS — aucune rotation, aucun retournement."""
+    def tri(bx, by):
+        return [(bx, by), (bx+2, by), (bx+1, by+1)]
+
+    # Arrangement 1 : escalier diagonal (5 marches montant vers la droite)
+    escal = [tri(0,0), tri(2,0), tri(2,1), tri(4,1), tri(4,2)]
+
+    # Arrangement 2 : bande plate (5 triangles en rang horizontal)
+    band  = [tri(0,0), tri(2,0), tri(4,0), tri(6,0), tri(8,0)]
+
+    # Arrangement 3 : pyramide (3 à la base, 2 au 2e étage, forme triangulaire)
+    pyr   = [tri(0,0), tri(2,0), tri(4,0), tri(1,1), tri(3,1)]
+
     def center(tris):
         pts = [p for t in tris for p in t]
-        cx = sum(x for x,y in pts)/len(pts)
-        cy = sum(y for x,y in pts)/len(pts)
+        cx = sum(x for x,y in pts) / len(pts)
+        cy = sum(y for x,y in pts) / len(pts)
         return [[(x-cx, y-cy) for x,y in t] for t in tris]
-    return [center(house), center(trapeze), center(arrow)]
+
+    return [center(escal), center(band), center(pyr)]
 
 def render_prologue(params):
     """Sens facile : on réarrange les MÊMES morceaux en plusieurs polygones ; l'aire ne change pas."""
@@ -1389,7 +1379,7 @@ def render_prologue(params):
     ts = []; t = 0.0
     for nm,du,a,b in seq: ts.append((nm,t,du,a,b)); t += du
     total = t
-    bbox = (-3.8,-2.8,3.8,2.8)
+    bbox = (-5.5,-2.2,5.5,2.6)
     fig,ax,phase = _setup_fig_simple(bbox, params,
         "Le sens facile : réarranger des pièces ne change pas l'aire",
         mx=0.2, my_top=0.6, my_bot=0.6)
@@ -1404,11 +1394,11 @@ def render_prologue(params):
     areatag = ax.text(0,-2.55,"aire = 5 (5 triangles)",ha='center',va='top',
                       fontsize=12.5,color=ACCENT,family='serif',weight='bold')
     TXT = {
-        'h0': ("Le sens facile", "On part de quelques pièces qui forment un polygone."),
-        'm01': ("Le sens facile", "On les déplace…"),
-        'h1': ("…une autre forme", "Mêmes pièces, AUTRE polygone."),
-        'm12': ("…encore une autre", "On réarrange encore…"),
-        'h2': ("Toujours la même aire", "Quelle que soit la forme, l'aire = somme des pièces. C'est ÉVIDENT."),
+        'h0': ("Le sens facile", "On part de 5 pièces identiques qui forment un escalier."),
+        'm01': ("Le sens facile", "On les déplace — chacune glisse vers sa nouvelle place…"),
+        'h1': ("…une autre forme", "Mêmes 5 pièces : une bande à plat, bien différente de l'escalier."),
+        'm12': ("…encore une autre", "On les déplace à nouveau…"),
+        'h2': ("Toujours la même aire", "Une pyramide, cette fois. L'aire = somme des 5 triangles. C'est ÉVIDENT."),
         'cv': ("Le vrai problème : la réciproque",
                "L'inverse est bien plus dur : deux polygones de MÊME aire,\n"
                "peut-on TOUJOURS découper l'un pour reconstituer EXACTEMENT l'autre ?"),

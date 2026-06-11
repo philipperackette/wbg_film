@@ -37,6 +37,7 @@ assert "state_after" in src_beats,                "REGRESSION: pieces non creees
 assert "Marque de coupe PERSISTANTE" in src_draw, "REGRESSION: marque de coupe persistante absente"
 assert "recolor" in src_fus,                      "REGRESSION: recoloriage A->B absent (fusion)"
 assert "interp_pose(ta, tb, f)" in src_pro,       "REGRESSION: prologue non plan (retournement 3D)"
+assert "escalier" in inspect.getsource(W._prologue_arrangements).lower(), "REGRESSION: ancienne maison avec retournement 180deg"
 assert '"BA"' in src_scene,                       "REGRESSION: sens symetrique B->A absent"
 assert "_mover_groups" in inspect.getsource(W._method_timeline), "REGRESSION: dissection pas groupee par transformation"
 print("OK — coupes persistantes, fusion A->B, prologue plan, sens B->A, dissection groupee par transformation")
