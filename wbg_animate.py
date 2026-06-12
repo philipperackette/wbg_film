@@ -1406,7 +1406,9 @@ def _fusion_draw(ax, A, sc, ts, T):
     for i,pp in enumerate(A['patches']):
         pp.set_xy(poses[i]); pp.set_facecolor(fills[i]); pp.set_alpha(pa)
         pp.set_linewidth(0.5 if pa>0.01 else 0.0)
-    t,m=_FUS_TXT[fr['nm']]; return t, m.replace("{N}",str(sc['ncom']))
+    t,m=_FUS_TXT[fr['nm']]
+    nstr=str(sc['ncom'])
+    return t.replace("{N}", nstr), m.replace("{N}", nstr)
 
 def render_fusion(params):
     os.makedirs(params.out_dir, exist_ok=True)
