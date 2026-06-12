@@ -35,7 +35,67 @@ from wbg_pipeline import dissect_polygon, common_refinement, common_located
 PALETTE_A = ['#e9d39c','#e8bcae','#e0ac84','#f0d8c0','#d9b48e','#ecc9a4']  # A : chaud
 PALETTE_B = ['#c2d3e6','#c4d8c2','#d2c6e0','#b6c4da','#bccdb0','#cbb8d6']  # B : froid
 INK='#15151c'; PAPER='#fbf7ec'; ACCENT='#a8472a'; MUTED='#6e6857'
-SUBTITLE_BROWN='#7a4a2a'   # brun plus lisible pour les sous-titres/indicateurs
+
+# Réglages éditables : textes courts, sous-titres marrons, pauses de fin.
+try:
+    import wbg_params as WBGCFG
+except Exception:
+    WBGCFG = None
+
+SUBTITLE_BROWN = getattr(WBGCFG, "SUBTITLE_BROWN", "#7a4a2a") if WBGCFG else "#7a4a2a"
+
+def _cfg_text(section, key, default):
+    if not WBGCFG:
+        return default
+    return getattr(WBGCFG, "SUBTITLE_TEXTS", {}).get(section, {}).get(key, default)
+
+def _cfg_end(section, key, default):
+    if not WBGCFG:
+        return default
+    return getattr(WBGCFG, "END_HOLDS", {}).get(section, {}).get(key, default)
+
+def _cfg_method_end(label, default):
+    if not WBGCFG:
+        return default
+    d = getattr(WBGCFG, "END_HOLDS", {}).get("method", {})
+    return d.get(label, d.get("default_final", default))
+
+def _cfg_merge_pairs(section, base, **fmt):
+    out = dict(base)
+    if not WBGCFG:
+        return out
+    for k, v in getattr(WBGCFG, "SUBTITLE_TEXTS", {}).get(section, {}).items():
+        if isinstance(v, (tuple, list)) and len(v) == 2:
+            try:
+                out[k] = (str(v[0]).format(**fmt), str(v[1]).format(**fmt))
+            except Exception:
+                out[k] = tuple(v)
+    return out
+
+def _cfg_merge_strings(section, base, **fmt):
+    out = dict(base)
+    if not WBGCFG:
+        return out
+    for k, v in getattr(WBGCFG, "SUBTITLE_TEXTS", {}).get(section, {}).items():
+        if isinstance(v, str):
+            try:
+                out[k] = v.format(**fmt)
+            except Exception:
+                out[k] = v
+    return out
+
+def _cfg_method_pair(label, key, default_title, default_msg, **fmt):
+    if not WBGCFG:
+        return default_title, default_msg
+    method = getattr(WBGCFG, "SUBTITLE_TEXTS", {}).get("method", {})
+    val = method.get(label, {}).get(key, method.get("global", {}).get(key, (default_title, default_msg)))
+    if not (isinstance(val, (tuple, list)) and len(val) == 2):
+        return default_title, default_msg
+    try:
+        return str(val[0]).format(**fmt), str(val[1]).format(**fmt)
+    except Exception:
+        return default_title, default_msg
+
 
 # polygones de la démo (aire 6 ; mêmes que les diapos)
 _pi = math.pi
@@ -140,22 +200,24 @@ def build_scene(params: AnimParams, direction="AB"):
         colors=colA; orig=origA; suffix=""
         title="Découpe, glissement, rotation : A et B, les mêmes pièces"
         path=["L","M","N"]
-        cap={("L","M"):"Chaque pièce glisse et tourne : A → rectangle de largeur 1",
-             ("M","N"):"Les mêmes pièces repartent : rectangle de largeur 1 → B",
-             ("L","N"):"Les mêmes pièces : A → B"}
-        hold={"L":"Les {n} pièces communes, disposées comme dans A",
-              "M":"Les mêmes pièces réunies en rectangle de largeur 1",
-              "N":"Les mêmes pièces réassemblées en B — CQFD"}
+        cfg_section = "reassembly_AB"
+        cap={("L","M"):_cfg_text(cfg_section, "move_LM", "Chaque pièce glisse et tourne : A → rectangle de largeur 1"),
+             ("M","N"):_cfg_text(cfg_section, "move_MN", "Les mêmes pièces repartent : rectangle de largeur 1 → B"),
+             ("L","N"):_cfg_text(cfg_section, "move_LN", "Les mêmes pièces : A → B")}
+        hold={"L":_cfg_text(cfg_section, "hold_L", "Les {n} pièces communes, disposées comme dans A"),
+              "M":_cfg_text(cfg_section, "hold_M", "Les mêmes pièces réunies en rectangle de largeur 1"),
+              "N":_cfg_text(cfg_section, "hold_N", "Les mêmes pièces réassemblées en B — CQFD")}
     else:  # "BA" : même disposition, rejeu inversé, couleurs de B
         colors=colB; orig=origB; suffix="_BA"
         title="Sens inverse : B → A, les mêmes pièces (couleurs de B)"
         path=["N","M","L"]
-        cap={("N","M"):"Chaque pièce glisse et tourne : B → rectangle de largeur 1",
-             ("M","L"):"Les mêmes pièces repartent : rectangle de largeur 1 → A",
-             ("N","L"):"Les mêmes pièces : B → A"}
-        hold={"N":"Les {n} pièces communes, disposées comme dans B",
-              "M":"Les mêmes pièces réunies en rectangle de largeur 1",
-              "L":"Les mêmes pièces réassemblées en A — CQFD"}
+        cfg_section = "reassembly_BA"
+        cap={("N","M"):_cfg_text(cfg_section, "move_NM", "Chaque pièce glisse et tourne : B → rectangle de largeur 1"),
+             ("M","L"):_cfg_text(cfg_section, "move_ML", "Les mêmes pièces repartent : rectangle de largeur 1 → A"),
+             ("N","L"):_cfg_text(cfg_section, "move_NL", "Les mêmes pièces : B → A")}
+        hold={"N":_cfg_text(cfg_section, "hold_N", "Les {n} pièces communes, disposées comme dans B"),
+              "M":_cfg_text(cfg_section, "hold_M", "Les mêmes pièces réunies en rectangle de largeur 1"),
+              "L":_cfg_text(cfg_section, "hold_L", "Les mêmes pièces réassemblées en A — CQFD")}
 
     # bboxes globales par station, pour centrer verticalement chaque forme
     def gbb(raws):
@@ -202,7 +264,8 @@ def build_scene(params: AnimParams, direction="AB"):
     else:
         a,b=path[0],path[2]; s,d,L=plan(posByKey[a],posByKey[b])
         seq.append(("move",T,L,(posByKey[a],posByKey[b],s,d,cap[(a,b)]))); T+=L
-    seq.append(("hold",T,params.pause_end, (path[2], hold[path[2]])));         T+=params.pause_end
+    end_hold = _cfg_end(cfg_section, "final", params.pause_end)
+    seq.append(("hold",T,end_hold, (path[2], hold[path[2]])));         T+=end_hold
     total=T
 
     allpts=[p for Pset in (posL,posM,posN) for poly in Pset for p in poly]
@@ -468,10 +531,13 @@ def method_beats(md, params, detailed=True, label="", intro=None):
     if intro is not None:
         intro_title, intro_msg = intro
     elif detailed:
-        intro_title="Triangle → rectangle de largeur 1"
-        intro_msg=("On prend l'un des vrais triangles des figures — ici le plus « gras ».\n"
-               "Sa plus longue arête sert de base. Objectif : le transformer par découpes, glissements\n"
-               "et rotations, sans déformation, en un rectangle de largeur exactement 1.")
+        intro_title,intro_msg = _cfg_method_pair(
+            label, "intro",
+            "Triangle → rectangle de largeur 1",
+            "On prend l'un des vrais triangles des figures — ici le plus « gras ».\n"
+            "Sa plus longue arête sert de base. Objectif : le transformer par découpes, glissements\n"
+            "et rotations, sans déformation, en un rectangle de largeur exactement 1."
+        )
     else:
         intro_title=(label if label else "Triangle suivant")
         intro_msg=((label+" : ") if label else "")+"même procédé, sans déformation."
@@ -618,13 +684,19 @@ def method_beats(md, params, detailed=True, label="", intro=None):
             'title':"On pose le rectangle droit","msg":"Une dernière rotation met le rectangle à l\'horizontale.",'hold':H(1.8)})
         for pid,(v,c) in list(state.items()): state[pid]=(_rotate_pts(v,ang,rA[0],rA[1]), c)
     area=sum(_area_tup(v) for _,(v,_) in state.items())
+    final_title, final_msg = _cfg_method_pair(
+        label, "final",
+        "Rectangle de largeur 1",
+        f"Largeur exactement 1 ; hauteur = aire ≈ {_fr(area)}.\n"
+        "Chaque triangle subit ce procédé ; les rectangles obtenus s'empilent\n"
+        "ensuite en une seule colonne de largeur 1.",
+        area=_fr(area)
+    )
     beats.append({'k':'show','state':_snap(state),
-        'title':"Rectangle de largeur 1",
-        'msg':(f"Largeur exactement 1 ; hauteur = aire ≈ {_fr(area)}.\n"
-               "Chaque triangle subit ce procédé ; les rectangles obtenus s'empilent\n"
-               "ensuite en une seule colonne de largeur 1."),
+        'title':final_title,
+        'msg':final_msg,
         'dims':[{'kind':'hdim','label':"largeur = 1"},{'kind':'vright','label':f"≈ {_fr(area)}"}],
-        'hold':H(4.6)})
+        'hold':H(_cfg_method_end(label, 4.6))})
     return beats
 
 def _setup_fig_simple(bbox, params, title, mx=0.6, my_top=1.4, my_bot=0.9, show_ruler=False):
@@ -1091,7 +1163,9 @@ def render_column(params, poly=None, palette=None,
         durs.append(max(math.hypot(dx1-dx0,dy1-dy0)/params.trans_speed, params.min_move))
     starts=[i*max(params.stagger,0.18) for i in range(n)]
     move_len=max(starts[i]+durs[i] for i in range(n))
-    T0=params.pause_start; T1=T0+move_len; total=T1+params.pause_end
+    col_section = 'column_b' if suffix == '_b' else 'column_a'
+    end_hold = _cfg_end(col_section, 'final', params.pause_end)
+    T0=params.pause_start; T1=T0+move_len; total=T1+end_hold
     allpts=[]
     for i in range(n):
         for (verts,col) in sc['groups'][i]:
@@ -1117,9 +1191,9 @@ def render_column(params, poly=None, palette=None,
                         sc['tray_dx'][i][1]+f*(sc['col_dx'][i][1]-sc['tray_dx'][i][1])))
         return out
     def label_at(T):
-        if T<T0: return "Chaque triangle est devenu un rectangle de largeur 1 — coupes comprises"
-        if T>=T1: return "Colonne de largeur 1 : les marques de découpe restent visibles"
-        return "On empile les rectangles ; les marques de découpe sont conservées"
+        if T<T0: return _cfg_text("column", "start", "Chaque triangle est devenu un rectangle de largeur 1 — coupes comprises")
+        if T>=T1: return _cfg_text("column", "final", "Colonne de largeur 1 : les marques de découpe restent visibles")
+        return _cfg_text("column", "move", "On empile les rectangles ; les marques de découpe sont conservées")
     nframes=int(math.ceil(total*params.fps))
     def update(fr):
         T=fr/params.fps; tr=trans_at(T); k=0; allseg=[]
@@ -1149,7 +1223,9 @@ def dump_column_keyframes(params, fractions=(0.0,0.3,0.55,0.8,1.0)):
         durs.append(max(math.hypot(dx1-dx0,dy1-dy0)/params.trans_speed, params.min_move))
     starts=[i*max(params.stagger,0.18) for i in range(n)]
     move_len=max(starts[i]+durs[i] for i in range(n))
-    T0=params.pause_start; T1=T0+move_len; total=T1+params.pause_end
+    col_section = 'column_b' if suffix == '_b' else 'column_a'
+    end_hold = _cfg_end(col_section, 'final', params.pause_end)
+    T0=params.pause_start; T1=T0+move_len; total=T1+end_hold
     allpts=[]
     for i in range(n):
         for (verts,col) in sc['groups'][i]:
@@ -1235,7 +1311,7 @@ def _fusion_phases(sc, params):
     rs=getattr(params,'read_scale',1.0)
     P=[('apart',2.7*rs),('slide',2.8),('neutral',2.4*rs),
        ('revealA',2.1),('holdA',1.4*rs),('A2rect',4.9),('holdRectA',1.1*rs),
-       ('recolor',3.1),('holdRectB',1.1*rs),('rect2B',4.9),('holdB',2.6*rs)]
+       ('recolor',3.1),('holdRectB',1.1*rs),('rect2B',4.9),('holdB',_cfg_end('fusion','final',2.6)*rs)]
     ts=[]; t=0.0
     for nm,du in P: ts.append((nm,t,du)); t+=du
     return ts,t
@@ -1265,6 +1341,7 @@ _FUS_TXT={
  'holdB':("Équidécomposition",
           "Les {N} mêmes pièces composent A ET B :\nc'est l'équidécomposition (Wallace–Bolyai–Gerwien)."),
 }
+_FUS_TXT = _cfg_merge_pairs("fusion", _FUS_TXT)
 
 def _fusion_frame(sc, ts, T):
     """État de dessin à l'instant T : poses, couleurs, opacités, décalages des grilles."""
@@ -1430,14 +1507,14 @@ def build_intro_scene(params):
 
 def _intro_phases(params):
     rs=getattr(params,'read_scale',1.0)
-    P=[('a',2.3*rs),('b',2.5*rs),('area',2.6*rs),('theo',3.7*rs),('triA',4.0*rs),('triB',3.8*rs),('next',2.8*rs)]
+    P=[('a',2.3*rs),('b',2.5*rs),('area',2.6*rs),('theo',3.7*rs),('triA',4.0*rs),('triB',3.8*rs),('next',_cfg_end('intro','final',2.8)*rs)]
     ts=[]; t=0.0
     for nm,du in P: ts.append((nm,t,du)); t+=du
     return ts,t
 
 def _intro_text(sc):
     a=_fr(sc['area'])
-    return {
+    base = {
      'assemble':("Le sens facile","Assemblez des morceaux : on obtient toujours un polygone,\nd'aire égale à la somme des morceaux. C'est évident."),
      'converse':("Le vrai problème : la réciproque","Deux polygones de MÊME aire : peut-on toujours découper l'un pour\nreconstituer EXACTEMENT l'autre ? C'est tout l'enjeu du théorème."),
      'a':("Deux polygones","Voici un polygone A."),
@@ -1449,6 +1526,7 @@ def _intro_text(sc):
      'triB':("Étape 1 — trianguler",f"B de même : {sc['nB']} triangles."),
      'next':("La suite","Chaque triangle va devenir un rectangle de largeur 1."),
     }
+    return _cfg_merge_pairs("intro", base, area=a, nA=sc['nA'], nB=sc['nB'])
 
 def _t0(ts,name): return next(t for nm,t,du in ts if nm==name)
 
@@ -1642,7 +1720,7 @@ def render_prologue(params):
     seq = [('vrac',1.6*rs,0,0),                 # pièces en vrac
            ('mv0',2.1*rs,0,1),                  # vrac → hexagone
            ('h0',1.7*rs,1,1),('m01',2.2*rs,1,2),('h1',1.8*rs,2,2),
-           ('m12',2.2*rs,2,3),('h2',1.8*rs,3,3),('cv',4.0*rs,3,3)]
+           ('m12',2.2*rs,2,3),('h2',1.8*rs,3,3),('cv',_cfg_end('prologue','final',4.0)*rs,3,3)]
     ts = []; t = 0.0
     for nm,du,a,b in seq: ts.append((nm,t,du,a,b)); t += du
     total = t
@@ -1657,13 +1735,13 @@ def render_prologue(params):
             for i in range(6)]
     areatag = ax.text(0,-2.95,"aire = 6 triangles — constante",ha='center',va='top',
                       fontsize=12.5,color=SUBTITLE_BROWN,family='serif',weight='bold')
-    TITLE = {
+    TITLE = _cfg_merge_strings("prologue", {
         'vrac': "Six pièces identiques",
         'mv0': "Elles s'assemblent…",
         'h0': "Un hexagone", 'm01': "On les déplace…", 'h1': "Un zigzag plein, sans trou",
         'm12': "…encore une autre", 'h2': "Un parallélogramme plein",
         'cv': "Le vrai problème : et la réciproque ?",
-    }
+    })
     def pos_at(T):
         for nm,t0,du,a,b in ts:
             if T < t0+du or (nm,t0,du,a,b) == ts[-1]:
