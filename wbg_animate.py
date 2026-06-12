@@ -35,6 +35,7 @@ from wbg_pipeline import dissect_polygon, common_refinement, common_located
 PALETTE_A = ['#e9d39c','#e8bcae','#e0ac84','#f0d8c0','#d9b48e','#ecc9a4']  # A : chaud
 PALETTE_B = ['#c2d3e6','#c4d8c2','#d2c6e0','#b6c4da','#bccdb0','#cbb8d6']  # B : froid
 INK='#15151c'; PAPER='#fbf7ec'; ACCENT='#a8472a'; MUTED='#6e6857'
+SUBTITLE_BROWN='#7a4a2a'   # brun plus lisible pour les sous-titres/indicateurs
 
 # polygones de la démo (aire 6 ; mêmes que les diapos)
 _pi = math.pi
@@ -54,20 +55,20 @@ class AnimParams:
     height_px: int = 720
     dpi: int = 100
     # vitesses du mouvement
-    trans_speed: float = 4.0      # unités par seconde (translations glissées)
-    rot_speed:   float = 160.0    # degrés par seconde (rotations)
-    min_move:    float = 0.35     # durée plancher d'un déplacement (s)
+    trans_speed: float = 3.35     # unités par seconde (translations glissées) — ralenti légèrement
+    rot_speed:   float = 130.0    # degrés par seconde (rotations) — plus lisible
+    min_move:    float = 0.42     # durée plancher d'un déplacement (s)
     # mise en scène
-    stagger:     float = 0.05     # décalage de départ entre pièces successives (s)
+    stagger:     float = 0.06     # décalage de départ entre pièces successives (s)
     group_by_origin: bool = True  # faire partir ensemble les pièces d'un même triangle de A
     show_rect_phase: bool = True  # inclure l'étape rectangle 1×6 (sinon A -> B direct)
     gap: float = 1.7              # écart horizontal entre les « stations » A | rect | B
     # temps de pause (s)
-    pause_start: float = 1.0
-    pause_mid:   float = 0.9
-    pause_end:   float = 1.6
+    pause_start: float = 0.85
+    pause_mid:   float = 0.75
+    pause_end:   float = 1.25
     cut_dur:     float = 0.7      # durée du « flash » de coupe (scène méthode)
-    read_scale:  float = 1.0      # facteur global sur les pauses de lecture (scène méthode)
+    read_scale:  float = 0.90     # facteur global sur les pauses de lecture (scène méthode)
     # sortie
     out_dir: str = "/mnt/user-data/outputs/anim_dissection"
     basename: str = "wbg_equidecoupage"
@@ -459,15 +460,18 @@ def method_beats(md, params, detailed=True, label="", intro=None):
     pts=md['pts']
     blen=max(math.hypot(pts[i][0]-pts[(i+1)%3][0], pts[i][1]-pts[(i+1)%3][1]) for i in range(3))
     rs=getattr(params,'read_scale',1.0)
-    def H(x): return x*rs*(1.0 if detailed else 0.32)
+    def H(x):
+        # Rythmique : les longs panneaux détaillés sont resserrés,
+        # tandis que les passages résumés respirent davantage.
+        return x*rs*(0.88 if detailed else 0.46)
     beats=[]
     if intro is not None:
         intro_title, intro_msg = intro
     elif detailed:
-        intro_title="Un triangle quelconque"
+        intro_title="Triangle → rectangle de largeur 1"
         intro_msg=("On prend l'un des vrais triangles des figures — ici le plus « gras ».\n"
-               "Sa plus longue arête sert de base. But : le transformer, par découpages, glissements\n"
-               "et rotations (donc SANS déformation), en un rectangle de largeur exactement 1.")
+               "Sa plus longue arête sert de base. Objectif : le transformer par découpes, glissements\n"
+               "et rotations, sans déformation, en un rectangle de largeur exactement 1.")
     else:
         intro_title=(label if label else "Triangle suivant")
         intro_msg=((label+" : ") if label else "")+"même procédé, sans déformation."
@@ -476,37 +480,37 @@ def method_beats(md, params, detailed=True, label="", intro=None):
         'dims':[{'kind':'hdim','label':f"base ≈ {_fr(blen)}"}], 'hold':H(3.4 if detailed else 2.6)})
     state={md['trap_pid']:(md['trapV'],color), md['ndc_pid']:(md['amnV'],color)}
     beats.append({'k':'cut','state':{0:(pts,color)},'state_after':_snap(state),'segs':[md['MN']],
-        'title':"Découpe par la ligne des milieux",
-        'msg':"On joint les milieux des deux autres côtés et on coupe.\nLe petit triangle du haut va pivoter d'un demi-tour.",
+        'title':"Étape 1 — ligne des milieux",
+        'msg':"On joint les milieux des deux côtés issus du sommet, puis on coupe.\nLe petit triangle va pivoter d'un demi-tour.",
         'hold':H(2.6)})
     rot_iso=('rot',math.pi,md['N'][0],md['N'][1])
     _ndcV_landed=_interp_iso(md['amnV'], md['ndcV'], rot_iso, 1.0)  # true endpoint of the rotation
     beats.append({'k':'move','state':_snap(state),
         'movers':[(md['ndc_pid'], md['amnV'], md['ndcV'], rot_iso)],
-        'title':"Demi-tour de 180° → parallélogramme",
+        'title':"Demi-tour → parallélogramme",
         'msg':("Le demi-triangle pivote d'un demi-tour (180°).\n"
-               f"On obtient un PARALLÉLOGRAMME de même aire, de hauteur h ≈ {_fr(h)}."),
+               f"On obtient un parallélogramme de même aire, de hauteur h ≈ {_fr(h)}."),
         'dims':[{'kind':'vleft','label':f"h ≈ {_fr(h)}"}], 'hold':H(3.2)})
     state[md['ndc_pid']]=(_ndcV_landed, color)   # use actual landing position, no teleport
     ev=md['rest']; i=0; last='shear'
     cut_script={
-        'shear':("Rationalisation : la coupe","Une coupe isole, à droite, le coin du parallélogramme qui dépasse."),
+        'shear':("Étape 2 — rationaliser l\'oblique","Une coupe isole le petit coin qui dépasse."),
         'q-cut':(f"Découpe en q = {q} bandes",
                  f"Le dénominateur q = {q} donne le nombre de bandes : on coupe la base en {q} parts égales."),
         'p-cut':(f"Découpe en p = {p} bandes","On recoupe le grand côté pour le ramener à la longueur 1."),
-        'par-rect':("Redressement : une tranche","On découpe une fine tranche du côté à redresser.")}
+        'par-rect':("Étape 3 — redresser","On sépare la tranche qui dépasse.")}
     move_script={
         'shear':(f"Le côté oblique devient {frac}",
                  f"On glisse le morceau de l'autre côté. Le côté oblique mesure maintenant exactement {frac}\n"
-                 f"(une longueur RATIONNELLE) ; la hauteur h ≈ {_fr(h)} n'a pas bougé.", f"oblique = {frac}"),
+                 f"(une longueur rationnelle) ; la hauteur h ≈ {_fr(h)} n'a pas bougé.", f"oblique = {frac}"),
         'q-cut':(f"Empilement → côté = {p}",
                  f"On empile les {q} bandes : le côté oblique passe de {frac} à {frac} × {q} = {p}.\n"
-                 f"Il est maintenant ENTIER.", f"oblique = {p}"),
-        'p-cut':("Empilement → côté = 1","On empile : le grand côté devient exactement 1.","côté = 1"),
+                 f"Il est maintenant entier.", f"oblique = {p}"),
+        'p-cut':("Empilement → côté = 1","On empile les morceaux : le grand côté devient exactement 1.","côté = 1"),
         'par-rect':("…on la glisse","On glisse la tranche pour redresser le côté à angle droit.",None)}
     expl={
         'shear':("Pourquoi « rationaliser » le côté oblique ?",
-                 f"Le côté oblique a une longueur irrationnelle. Pour finir avec une largeur EXACTE de 1,\n"
+                 f"Le côté oblique a une longueur irrationnelle. Pour finir avec une largeur exacte de 1,\n"
                  f"on l'amène à la fraction la plus simple ≥ h, soit p/q = {frac}. On ne touche pas à la hauteur\n"
                  f"h ≈ {_fr(h)} : on ne change que la longueur de ce côté, par un cisaillement (découpe + glissement)."),
         'q-cut':("Étape suivante : rendre ce côté ENTIER",
@@ -557,8 +561,8 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                         wv=((x1-x0)/ln,(y1-y0)/ln)
             beats.append({'k':'cut','state':S_before,'state_after':_snap(stt),'segs':cutsegs,
                 'ra_wv':wv, 'ra_segs':ra_segs,
-                'title':"Redressement : une seule découpe",
-                'msg':"Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.",'hold':H(2.6)})
+                'title':"Redressement — découpe finale",
+                'msg':"Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.",'hold':H(2.2)})
 
             # Pour le redressement du triangle 2 de A : les groupes mobiles doivent partir
             # visuellement de gauche à droite. _mover_groups conserve l'ordre de première
@@ -567,9 +571,9 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                 mv.sort(key=lambda item: _cen(item[1])[0])
 
             beats.append({'k':'move','state':stt,'movers':mv,
-                'title':"…le morceau qui dépasse glisse à sa place",
-                'msg':"Le morceau qui dépasse à droite glisse d'un bloc vers la gauche\n(toutes ces pièces subissent la MÊME translation) : on obtient un rectangle de largeur 1.",
-                'labels':[],'hold':H(3.6),'slowmo':1.0})
+                'title':"Le morceau dépasse : il glisse à gauche",
+                'msg':"Le morceau qui dépasse à droite glisse d'un bloc vers la gauche :\ntoutes ces pièces subissent la même translation.",
+                'labels':[],'hold':H(3.0),'slowmo':1.25})
             last='par-rect'; continue
         if ev[i]['t']=='cut':
             grp=[]
@@ -611,12 +615,12 @@ def method_beats(md, params, detailed=True, label="", intro=None):
     if abs(ang)>1e-4:
         movers=[(pid, v, _rotate_pts(v,ang,rA[0],rA[1]), ('rot',ang,rA[0],rA[1])) for pid,(v,c) in state.items()]
         beats.append({'k':'move','state':_snap(state),'movers':movers,'together':True,
-            'title':"On oriente le rectangle","msg":"On tourne le rectangle pour le poser bien droit.",'hold':H(2.2)})
+            'title':"On pose le rectangle droit","msg":"Une dernière rotation met le rectangle à l\'horizontale.",'hold':H(1.8)})
         for pid,(v,c) in list(state.items()): state[pid]=(_rotate_pts(v,ang,rA[0],rA[1]), c)
     area=sum(_area_tup(v) for _,(v,_) in state.items())
     beats.append({'k':'show','state':_snap(state),
         'title':"Rectangle de largeur 1",
-        'msg':(f"Largeur exactement 1, hauteur = aire ≈ {_fr(area)}.\n"
+        'msg':(f"Largeur exactement 1 ; hauteur = aire ≈ {_fr(area)}.\n"
                "Chaque triangle subit ce procédé ; les rectangles obtenus s'empilent\n"
                "ensuite en une seule colonne de largeur 1."),
         'dims':[{'kind':'hdim','label':"largeur = 1"},{'kind':'vright','label':f"≈ {_fr(area)}"}],
@@ -630,7 +634,7 @@ def _setup_fig_simple(bbox, params, title, mx=0.6, my_top=1.4, my_bot=0.9, show_
     x0,y0,x1,y1=bbox
     ax.set_xlim(x0-mx, x1+mx); ax.set_ylim(y0-my_bot, y1+my_top)
     fig.text(0.5,0.965,title,ha='center',va='center',fontsize=16,color=INK,family='serif',weight='bold')
-    phase=fig.text(0.5,0.918,"",ha='center',va='center',fontsize=13,color=ACCENT,family='serif',style='italic')
+    phase=fig.text(0.5,0.918,"",ha='center',va='center',fontsize=13,color=SUBTITLE_BROWN,family='serif',style='italic')
     if show_ruler:
         rx=x0-mx+0.3; ry=y0-my_bot+0.5
         ax.plot([rx,rx+1],[ry,ry],color=MUTED,lw=1.4)
@@ -1229,9 +1233,9 @@ def build_fusion_scene(params):
 
 def _fusion_phases(sc, params):
     rs=getattr(params,'read_scale',1.0)
-    P=[('apart',3.2*rs),('slide',2.4),('neutral',2.8*rs),
-       ('revealA',1.7),('holdA',1.8*rs),('A2rect',4.4),('holdRectA',1.4*rs),
-       ('recolor',2.8),('holdRectB',1.4*rs),('rect2B',4.4),('holdB',3.6*rs)]
+    P=[('apart',2.7*rs),('slide',2.8),('neutral',2.4*rs),
+       ('revealA',2.1),('holdA',1.4*rs),('A2rect',4.9),('holdRectA',1.1*rs),
+       ('recolor',3.1),('holdRectB',1.1*rs),('rect2B',4.9),('holdB',2.6*rs)]
     ts=[]; t=0.0
     for nm,du in P: ts.append((nm,t,du)); t+=du
     return ts,t
@@ -1426,7 +1430,7 @@ def build_intro_scene(params):
 
 def _intro_phases(params):
     rs=getattr(params,'read_scale',1.0)
-    P=[('a',2.6*rs),('b',2.8*rs),('area',3.0*rs),('theo',4.4*rs),('triA',3.8*rs),('triB',3.4*rs),('next',3.4*rs)]
+    P=[('a',2.3*rs),('b',2.5*rs),('area',2.6*rs),('theo',3.7*rs),('triA',4.0*rs),('triB',3.8*rs),('next',2.8*rs)]
     ts=[]; t=0.0
     for nm,du in P: ts.append((nm,t,du)); t+=du
     return ts,t
@@ -1635,10 +1639,10 @@ def render_prologue(params):
     arrs = [vrac] + arrs_base                  # index : 0=vrac, 1=hexagone, 2=zigzag, 3=para
     cols = [PALETTE_A[2], PALETTE_B[0], PALETTE_A[1], PALETTE_B[2], PALETTE_A[4], PALETTE_B[1]]
     rs = getattr(params, 'read_scale', 1.0)
-    seq = [('vrac',2.0*rs,0,0),                 # pièces en vrac
-           ('mv0',1.8*rs,0,1),                  # vrac → hexagone
-           ('h0',2.2*rs,1,1),('m01',2.0*rs,1,2),('h1',2.2*rs,2,2),
-           ('m12',2.0*rs,2,3),('h2',2.4*rs,3,3),('cv',5.0*rs,3,3)]
+    seq = [('vrac',1.6*rs,0,0),                 # pièces en vrac
+           ('mv0',2.1*rs,0,1),                  # vrac → hexagone
+           ('h0',1.7*rs,1,1),('m01',2.2*rs,1,2),('h1',1.8*rs,2,2),
+           ('m12',2.2*rs,2,3),('h2',1.8*rs,3,3),('cv',4.0*rs,3,3)]
     ts = []; t = 0.0
     for nm,du,a,b in seq: ts.append((nm,t,du,a,b)); t += du
     total = t
@@ -1652,7 +1656,7 @@ def render_prologue(params):
     nums = [ax.text(0,0,str(i+1),ha='center',va='center',fontsize=10,color=INK,family='serif')
             for i in range(6)]
     areatag = ax.text(0,-2.95,"aire = 6 triangles — constante",ha='center',va='top',
-                      fontsize=12.5,color=ACCENT,family='serif',weight='bold')
+                      fontsize=12.5,color=SUBTITLE_BROWN,family='serif',weight='bold')
     TITLE = {
         'vrac': "Six pièces identiques",
         'mv0': "Elles s'assemblent…",
@@ -1712,7 +1716,7 @@ def render_threetoone(params):
     cells=[MPLPoly([(0,0)],closed=True,facecolor=cols[i],edgecolor=INK,lw=1.6) for i in range(3)]
     for c in cells: ax.add_patch(c)
     nums=[ax.text(0,0,str(i+1),ha='center',va='center',fontsize=13,color=INK,family='serif') for i in range(3)]
-    wlab=ax.text(0,0,"",ha='center',va='top',fontsize=13,color=ACCENT,family='serif',weight='bold')
+    wlab=ax.text(0,0,"",ha='center',va='top',fontsize=13,color=SUBTITLE_BROWN,family='serif',weight='bold')
     cutsegs=LineCollection([],colors=ACUT,linewidths=2.4); ax.add_collection(cutsegs)
     def at(T):
         for nm,t0,du,a,b in ts:
