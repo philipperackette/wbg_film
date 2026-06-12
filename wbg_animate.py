@@ -45,9 +45,10 @@ except Exception:
 SUBTITLE_BROWN = getattr(WBGCFG, "SUBTITLE_BROWN", "#7a4a2a") if WBGCFG else "#7a4a2a"
 
 def _cfg_text(section, key, default):
-    if not WBGCFG:
-        return default
-    return getattr(WBGCFG, "SUBTITLE_TEXTS", {}).get(section, {}).get(key, default)
+    val = default
+    if WBGCFG:
+        val = getattr(WBGCFG, "SUBTITLE_TEXTS", {}).get(section, {}).get(key, default)
+    return _one_line(val) if "_one_line" in globals() else " ".join(str(val).split())
 
 def _cfg_end(section, key, default):
     if not WBGCFG:
@@ -67,7 +68,7 @@ def _cfg_merge_pairs(section, base, **fmt):
     for k, v in getattr(WBGCFG, "SUBTITLE_TEXTS", {}).get(section, {}).items():
         if isinstance(v, (tuple, list)) and len(v) == 2:
             try:
-                out[k] = (str(v[0]).format(**fmt), str(v[1]).format(**fmt))
+                out[k] = (_one_line(str(v[0]).format(**fmt)), _one_line(str(v[1]).format(**fmt)))
             except Exception:
                 out[k] = tuple(v)
     return out
@@ -79,22 +80,25 @@ def _cfg_merge_strings(section, base, **fmt):
     for k, v in getattr(WBGCFG, "SUBTITLE_TEXTS", {}).get(section, {}).items():
         if isinstance(v, str):
             try:
-                out[k] = v.format(**fmt)
+                out[k] = _one_line(v.format(**fmt))
             except Exception:
                 out[k] = v
     return out
 
+def _one_line(x):
+    return " ".join(str(x).split())
+
 def _cfg_method_pair(label, key, default_title, default_msg, **fmt):
     if not WBGCFG:
-        return default_title, default_msg
+        return _one_line(default_title), _one_line(default_msg)
     method = getattr(WBGCFG, "SUBTITLE_TEXTS", {}).get("method", {})
     val = method.get(label, {}).get(key, method.get("global", {}).get(key, (default_title, default_msg)))
     if not (isinstance(val, (tuple, list)) and len(val) == 2):
-        return default_title, default_msg
+        return _one_line(default_title), _one_line(default_msg)
     try:
-        return str(val[0]).format(**fmt), str(val[1]).format(**fmt)
+        return _one_line(str(val[0]).format(**fmt)), _one_line(str(val[1]).format(**fmt))
     except Exception:
-        return default_title, default_msg
+        return _one_line(default_title), _one_line(default_msg)
 
 
 # polygones de la démo (aire 6 ; mêmes que les diapos)
@@ -546,47 +550,32 @@ def method_beats(md, params, detailed=True, label="", intro=None):
         'dims':[{'kind':'hdim','label':f"base ≈ {_fr(blen)}"}], 'hold':H(3.4 if detailed else 2.6)})
     state={md['trap_pid']:(md['trapV'],color), md['ndc_pid']:(md['amnV'],color)}
     beats.append({'k':'cut','state':{0:(pts,color)},'state_after':_snap(state),'segs':[md['MN']],
-        'title':"Étape 1 — ligne des milieux",
-        'msg':"On joint les milieux des deux côtés issus du sommet, puis on coupe.\nLe petit triangle va pivoter d'un demi-tour.",
+        'title':_cfg_method_pair(label, "midline_cut", "Étape 1 — ligne des milieux", "On joint les milieux des deux côtés issus du sommet, puis on coupe.")[0],
+        'msg':_cfg_method_pair(label, "midline_cut", "Étape 1 — ligne des milieux", "On joint les milieux des deux côtés issus du sommet, puis on coupe.")[1],
         'hold':H(2.6)})
     rot_iso=('rot',math.pi,md['N'][0],md['N'][1])
     _ndcV_landed=_interp_iso(md['amnV'], md['ndcV'], rot_iso, 1.0)  # true endpoint of the rotation
     beats.append({'k':'move','state':_snap(state),
         'movers':[(md['ndc_pid'], md['amnV'], md['ndcV'], rot_iso)],
-        'title':"Demi-tour → parallélogramme",
-        'msg':("Le demi-triangle pivote d'un demi-tour (180°).\n"
-               f"On obtient un parallélogramme de même aire, de hauteur h ≈ {_fr(h)}."),
+        'title':_cfg_method_pair(label, "midline_move", "Demi-tour → parallélogramme", "Le petit triangle pivote de 180° : on obtient un parallélogramme de même aire.")[0],
+        'msg':_cfg_method_pair(label, "midline_move", "Demi-tour → parallélogramme", "Le petit triangle pivote de 180° : on obtient un parallélogramme de même aire.")[1],
         'dims':[{'kind':'vleft','label':f"h ≈ {_fr(h)}"}], 'hold':H(3.2)})
     state[md['ndc_pid']]=(_ndcV_landed, color)   # use actual landing position, no teleport
     ev=md['rest']; i=0; last='shear'
     cut_script={
-        'shear':("Étape 2 — rationaliser l\'oblique","Une coupe isole le petit coin qui dépasse."),
-        'q-cut':(f"Découpe en q = {q} bandes",
-                 f"Le dénominateur q = {q} donne le nombre de bandes : on coupe la base en {q} parts égales."),
-        'p-cut':(f"Découpe en p = {p} bandes","On recoupe le grand côté pour le ramener à la longueur 1."),
-        'par-rect':("Étape 3 — redresser","On sépare la tranche qui dépasse.")}
+        'shear':_cfg_method_pair(label, "shear_cut", "Rationalisation — découpe", "Une coupe isole le petit coin qui dépasse.", frac=frac, p=p, q=q),
+        'q-cut':_cfg_method_pair(label, "q_cut", f"Découpe en q = {q} bandes", f"On coupe la base en {q} parts égales.", frac=frac, p=p, q=q),
+        'p-cut':_cfg_method_pair(label, "p_cut", f"Découpe en p = {p} bandes", "On recoupe le grand côté pour le ramener à 1.", frac=frac, p=p, q=q),
+        'par-rect':_cfg_method_pair(label, "rect_cut", "Redressement — découpe finale", "Une découpe sépare le morceau qui dépasse.", frac=frac, p=p, q=q)}
     move_script={
-        'shear':(f"Le côté oblique devient {frac}",
-                 f"On glisse le morceau de l'autre côté. Le côté oblique mesure maintenant exactement {frac}\n"
-                 f"(une longueur rationnelle) ; la hauteur h ≈ {_fr(h)} n'a pas bougé.", f"oblique = {frac}"),
-        'q-cut':(f"Empilement → côté = {p}",
-                 f"On empile les {q} bandes : le côté oblique passe de {frac} à {frac} × {q} = {p}.\n"
-                 f"Il est maintenant entier.", f"oblique = {p}"),
-        'p-cut':("Empilement → côté = 1","On empile les morceaux : le grand côté devient exactement 1.","côté = 1"),
-        'par-rect':("…on la glisse","On glisse la tranche pour redresser le côté à angle droit.",None)}
+        'shear':(*_cfg_method_pair(label, "shear_move", f"Le côté oblique devient {frac}", f"On glisse le morceau : le côté oblique vaut maintenant {frac}.", frac=frac, p=p, q=q), f"oblique = {frac}"),
+        'q-cut':(*_cfg_method_pair(label, "q_move", f"Empilement → côté = {p}", f"On empile les {q} bandes : {frac} × {q} = {p}.", frac=frac, p=p, q=q), f"oblique = {p}"),
+        'p-cut':(*_cfg_method_pair(label, "p_move", "Empilement → côté = 1", "On empile les morceaux : le grand côté devient exactement 1.", frac=frac, p=p, q=q), "côté = 1"),
+        'par-rect':(*_cfg_method_pair(label, "rect_move", "Le morceau glisse à gauche", "Le morceau qui dépasse glisse d’un bloc : même translation pour toutes ses pièces.", frac=frac, p=p, q=q), None)}
     expl={
-        'shear':("Pourquoi « rationaliser » le côté oblique ?",
-                 f"Le côté oblique a une longueur irrationnelle. Pour finir avec une largeur exacte de 1,\n"
-                 f"on l'amène à la fraction la plus simple ≥ h, soit p/q = {frac}. On ne touche pas à la hauteur\n"
-                 f"h ≈ {_fr(h)} : on ne change que la longueur de ce côté, par un cisaillement (découpe + glissement)."),
-        'q-cut':("Étape suivante : rendre ce côté ENTIER",
-                 f"Le côté oblique vaut {frac}. Idée : couper la base en q = {q} bandes égales et les empiler.\n"
-                 f"Le côté sera alors répété {q} fois : {frac} × {q} = {p}. Il deviendra un nombre ENTIER."),
-        'par-rect':("Dernière étape : redresser en rectangle (empilement final)",
-                 f"Le côté oblique vaut maintenant 1, mais le parallélogramme est encore penché.\n"
-                 f"On le tranche en bandes de largeur 1 le long de ce côté ; chaque bande qui dépasse\n"
-                 f"coulisse d'un bloc pour s'empiler sur la précédente. Empilées, elles forment\n"
-                 f"le rectangle de largeur exactement 1 (c'est l'« empilement final » de Boyer, fig. 8.4).")}
+        'shear':_cfg_method_pair(label, "shear_explain", "Étape 2 — rationaliser l’oblique", "On ajuste le côté oblique pour obtenir une longueur rationnelle.", frac=frac, p=p, q=q),
+        'q-cut':_cfg_method_pair(label, "q_explain", "Rendre le côté entier", f"On coupe en q = {q} bandes égales, puis on les empile.", frac=frac, p=p, q=q),
+        'par-rect':_cfg_method_pair(label, "rect_explain", "Étape 3 — redresser en rectangle", "On tranche la partie qui dépasse, puis elle glisse pour combler le creux.", frac=frac, p=p, q=q)}
     explained=set()
     def _cen(vv):
         k=len(vv); return (sum(x for x,_ in vv)/k, sum(y for _,y in vv)/k)
@@ -627,8 +616,8 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                         wv=((x1-x0)/ln,(y1-y0)/ln)
             beats.append({'k':'cut','state':S_before,'state_after':_snap(stt),'segs':cutsegs,
                 'ra_wv':wv, 'ra_segs':ra_segs,
-                'title':"Redressement — découpe finale",
-                'msg':"Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.",'hold':H(2.2)})
+                'title':_cfg_method_pair(label, "rect_cut", "Redressement — découpe finale", "Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.")[0],
+                'msg':_cfg_method_pair(label, "rect_cut", "Redressement — découpe finale", "Une découpe sépare le morceau qui dépasse du rectangle de largeur 1.")[1],'hold':H(2.2)})
 
             # Pour le redressement du triangle 2 de A : les groupes mobiles doivent partir
             # visuellement de gauche à droite. _mover_groups conserve l'ordre de première
@@ -637,8 +626,8 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                 mv.sort(key=lambda item: _cen(item[1])[0])
 
             beats.append({'k':'move','state':stt,'movers':mv,
-                'title':"Le morceau dépasse : il glisse à gauche",
-                'msg':"Le morceau qui dépasse à droite glisse d'un bloc vers la gauche :\ntoutes ces pièces subissent la même translation.",
+                'title':_cfg_method_pair(label, "rect_move", "Le morceau glisse à gauche", "Le morceau qui dépasse glisse d’un bloc : même translation pour toutes ses pièces.")[0],
+                'msg':_cfg_method_pair(label, "rect_move", "Le morceau glisse à gauche", "Le morceau qui dépasse glisse d’un bloc : même translation pour toutes ses pièces.")[1],
                 'labels':[],'hold':H(3.0),'slowmo':1.25})
             last='par-rect'; continue
         if ev[i]['t']=='cut':
@@ -681,7 +670,8 @@ def method_beats(md, params, detailed=True, label="", intro=None):
     if abs(ang)>1e-4:
         movers=[(pid, v, _rotate_pts(v,ang,rA[0],rA[1]), ('rot',ang,rA[0],rA[1])) for pid,(v,c) in state.items()]
         beats.append({'k':'move','state':_snap(state),'movers':movers,'together':True,
-            'title':"On pose le rectangle droit","msg":"Une dernière rotation met le rectangle à l\'horizontale.",'hold':H(1.8)})
+            'title':_cfg_method_pair(label, "rotate_rect", "On pose le rectangle droit", "Une dernière rotation met le rectangle à l’horizontale.")[0],
+            'msg':_cfg_method_pair(label, "rotate_rect", "On pose le rectangle droit", "Une dernière rotation met le rectangle à l’horizontale.")[1],'hold':H(1.8)})
         for pid,(v,c) in list(state.items()): state[pid]=(_rotate_pts(v,ang,rA[0],rA[1]), c)
     area=sum(_area_tup(v) for _,(v,_) in state.items())
     final_title, final_msg = _cfg_method_pair(

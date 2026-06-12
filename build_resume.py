@@ -61,7 +61,7 @@ def render_all(params):
         vig2=dict(poly=[(p.x,p.y) for p in W.POLY_B],
                   tris=[[(p.x,p.y) for p in t] for t in trisB_raw], active_idx=2, palette=W.PALETTE_B)
         W.render_method(params, tri=t2, color=W.PALETTE_B[2], detailed=True, max_den=3,
-                        suffix="_2sur3", label="Triangle 2 de B", fig_vignette=vig2)
+                        suffix="_2sur3", label="Triangle 3 de B", fig_vignette=vig2)
         log("methode_2sur3 OK")
     else: log("methode_2sur3 (skip)")
 

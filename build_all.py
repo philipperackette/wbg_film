@@ -62,8 +62,8 @@ def render_all(params):
                                          label=lab, fig_vignette=vig)
         done(f"methode_{k} ({lab}{' — détaillé' if o['detailed'] else ''})", outs, total)
 
-    # B T2 (idx=2) : rationalisation 2/3 — dernière dissection de B, avant colonneB
-    print("— méthode 2/3 : triangle 2 de B (rationalisation réelle p=2, q=3)", flush=True)
+    # B T3 (idx=2) : rationalisation 2/3 — dernière dissection de B, avant colonneB
+    print("— méthode 2/3 : triangle 3 de B (rationalisation réelle p=2, q=3)", flush=True)
     from wbg_core import ear_clip
     trisB_raw = [list(t) for t in ear_clip(list(W.POLY_B))]
     t2 = W._reorient_horizontal(trisB_raw[2])
@@ -72,7 +72,7 @@ def render_all(params):
                 active_idx=2, palette=W.PALETTE_B)
     outs, total, _ = W.render_method(params, tri=t2, color=W.PALETTE_B[2],
                                      detailed=True, max_den=3, suffix="_2sur3",
-                                     label="Triangle 2 de B",
+                                     label="Triangle 3 de B",
                                      fig_vignette=vig2)
     done("methode_2sur3 (triangle B T2, rationalisation 2/3)", outs, total)
 
