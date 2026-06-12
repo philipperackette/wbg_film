@@ -1600,15 +1600,45 @@ def _prologue_arrangements():
         return [[(x-cx, y-cy) for x,y in t] for t in tris]
     return [center(hexg), center(zig), center(para)]
 
+
+def _prologue_vrac():
+    """6 triangles équilatéraux éparpillés aléatoirement — position de départ
+    avant qu'ils se rassemblent en hexagone. Positions fixes (seed) pour que
+    le rendu soit déterministe."""
+    import random
+    rng = random.Random(7)
+    s = 1.5
+    # triangle équilatéral centré : même gabarit que _prologue_arrangements
+    base = [(-s/2, -s*0.2887), (s/2, -s*0.2887), (0, s*0.5774)]
+    def rotated(tri, angle):
+        import math
+        ca, sa = math.cos(angle), math.sin(angle)
+        return [(x*ca - y*sa, x*sa + y*ca) for x,y in tri]
+    def translated(tri, dx, dy):
+        return [(x+dx, y+dy) for x,y in tri]
+    positions = [(-2.2, 1.6), (0.0, 1.8), (2.3, 1.4),
+                 (-2.4,-1.5), (0.1,-1.7), (2.2,-1.3)]
+    result = []
+    for i, (bx, by) in enumerate(positions):
+        angle = rng.uniform(-2.8, 2.8)
+        dx = bx + rng.uniform(-0.4, 0.4)
+        dy = by + rng.uniform(-0.3, 0.3)
+        result.append(translated(rotated(base, angle), dx, dy))
+    return result
+
 def render_prologue(params):
     """Sens facile : on réarrange les MÊMES 6 triangles équilatéraux en plusieurs figures ;
     l'aire ne change pas. Mouvements purement plans (≤60°), sans retournement."""
     os.makedirs(params.out_dir, exist_ok=True)
-    arrs = _prologue_arrangements()            # [hexagone, zigzag/éclair, parallélogramme]
+    vrac = _prologue_vrac()                    # positions éparpillées (départ)
+    arrs_base = _prologue_arrangements()       # [hexagone, zigzag/éclair, parallélogramme]
+    arrs = [vrac] + arrs_base                  # index : 0=vrac, 1=hexagone, 2=zigzag, 3=para
     cols = [PALETTE_A[2], PALETTE_B[0], PALETTE_A[1], PALETTE_B[2], PALETTE_A[4], PALETTE_B[1]]
     rs = getattr(params, 'read_scale', 1.0)
-    seq = [('h0',2.6*rs,0,0),('m01',2.0*rs,0,1),('h1',2.2*rs,1,1),
-           ('m12',2.0*rs,1,2),('h2',2.4*rs,2,2),('cv',5.0*rs,2,2)]
+    seq = [('vrac',2.0*rs,0,0),                 # pièces en vrac
+           ('mv0',1.8*rs,0,1),                  # vrac → hexagone
+           ('h0',2.2*rs,1,1),('m01',2.0*rs,1,2),('h1',2.2*rs,2,2),
+           ('m12',2.0*rs,2,3),('h2',2.4*rs,3,3),('cv',5.0*rs,3,3)]
     ts = []; t = 0.0
     for nm,du,a,b in seq: ts.append((nm,t,du,a,b)); t += du
     total = t
@@ -1624,7 +1654,9 @@ def render_prologue(params):
     areatag = ax.text(0,-2.95,"aire = 6 triangles — constante",ha='center',va='top',
                       fontsize=12.5,color=ACCENT,family='serif',weight='bold')
     TITLE = {
-        'h0': "Le sens facile", 'm01': "On les déplace…", 'h1': "Un zigzag plein, sans trou",
+        'vrac': "Six pièces identiques",
+        'mv0': "Elles s'assemblent…",
+        'h0': "Un hexagone", 'm01': "On les déplace…", 'h1': "Un zigzag plein, sans trou",
         'm12': "…encore une autre", 'h2': "Un parallélogramme plein",
         'cv': "Le vrai problème : et la réciproque ?",
     }
@@ -1647,7 +1679,7 @@ def render_prologue(params):
             patches[i].set_xy(interp); patches[i].set_alpha(fade)
             cx = sum(x for x,y in interp)/3; cy = sum(y for x,y in interp)/3
             nums[i].set_position((cx,cy)); nums[i].set_alpha(fade)
-        areatag.set_alpha(fade)
+        areatag.set_alpha(0.0 if nm in ('vrac','mv0') else fade)
         phase.set_text(TITLE[nm])
         return patches+nums+[areatag,phase]
     anim = FuncAnimation(fig,update,frames=nframes,interval=1000/params.fps,blit=False)
