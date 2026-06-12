@@ -265,7 +265,6 @@ def _setup_fig(scene, params):
     ax.plot([rx,rx],[ry-0.08,ry+0.08],color=ACCENT,lw=1.6)
     ax.plot([rx+1,rx+1],[ry-0.08,ry+0.08],color=ACCENT,lw=1.6)
     ax.text(rx+0.5,ry-0.18,"1 unité",ha='center',va='top',fontsize=8,color=ACCENT,family='monospace')
-    _step_bar(fig, 6)
     return fig,ax,patches,phase
 
 
@@ -993,10 +992,9 @@ def render_method(params, tri=None, color=None, detailed=True, suffix="", label=
     md=build_method(tri, color or PALETTE_A[0], max_den=max_den)
     beats=method_beats(md, params, detailed=detailed, label=label, intro=intro); total=_method_timeline(beats, params)
     fig,ax,phase=_setup_fig_simple(_method_bbox(beats), params,
-        "Comment un triangle devient un rectangle de largeur 1", mx=1.2, my_top=1.5, my_bot=1.9)
+        "Triangle → rectangle de largeur 1", mx=1.2, my_top=1.5, my_bot=1.0, show_ruler=True)
     msg=fig.text(0.5,0.075,"",ha='center',va='center',fontsize=13.0,color=INK,family='serif',
-                 linespacing=1.5, bbox=dict(boxstyle='round,pad=0.6', fc='#fbf7ec', ec='#ddd6c4', alpha=0.92))
-    _step_bar(fig, 3)
+                 linespacing=1.5, alpha=0.0)
     patches=[]; annot=[]; flash=Line2D([],[],color=ACCENT,lw=2.6,alpha=0.0,solid_capstyle='round'); ax.add_line(flash)
     # ── vignette : figure source avec triangle actif mis en valeur ──
     if fig_vignette is not None:
@@ -1045,9 +1043,9 @@ def dump_method_keyframes(params, fractions=(0.04,0.16,0.30,0.46,0.62,0.78,0.93,
     bb=_method_bbox(beats); out=[]
     for fr in fractions:
         fig,ax,phase=_setup_fig_simple(bb, params,
-            "Comment un triangle devient un rectangle de largeur 1", mx=1.2, my_top=1.5, my_bot=1.9)
+            "Triangle → rectangle de largeur 1", mx=1.2, my_top=1.5, my_bot=1.0, show_ruler=True)
         msg=fig.text(0.5,0.075,"",ha='center',va='center',fontsize=13.0,color=INK,family='serif',
-                     linespacing=1.5, bbox=dict(boxstyle='round,pad=0.6', fc='#fbf7ec', ec='#ddd6c4', alpha=0.92))
+                     linespacing=1.5, alpha=0.0)
         patches=[]; annot=[]; flash=Line2D([],[],color=ACCENT,lw=2.6,alpha=0.0); ax.add_line(flash)
         pieces,beat,in_hold,flashinfo,moving=_method_state_at(beats, md['color'], fr*total)
         _method_draw(ax, patches, annot, msg, phase, flash, beat, pieces, in_hold, flashinfo, moving)
@@ -1079,7 +1077,7 @@ def build_column_scene(params, poly=None, palette=None):
                 colx=colx, tray_w=tray_w, total_h=sum(H))
 
 def render_column(params, poly=None, palette=None,
-                  scene_title="Empiler les rectangles unité → la colonne 1 × aire",
+                  scene_title="Empilement → colonne de largeur 1",
                   suffix=""):
     os.makedirs(params.out_dir, exist_ok=True)
     sc=build_column_scene(params, poly, palette); n=sc['n']
@@ -1097,8 +1095,7 @@ def render_column(params, poly=None, palette=None,
                 allpts.append((x+sc['tray_dx'][i][0], y+sc['tray_dx'][i][1]))
                 allpts.append((x+sc['col_dx'][i][0], y+sc['col_dx'][i][1]))
     bb=_bbox(allpts)
-    fig,ax,phase=_setup_fig_simple(bb, params, scene_title)
-    _step_bar(fig, 4)
+    fig,ax,phase=_setup_fig_simple(bb, params, scene_title, show_ruler=True)
     ax.text(sc['colx']+0.5, sc['total_h']+0.3, "colonne de largeur 1",
             ha='center', va='bottom', fontsize=11, color=INK, family='serif', weight='bold')
     fills=[]
@@ -1157,7 +1154,7 @@ def dump_column_keyframes(params, fractions=(0.0,0.3,0.55,0.8,1.0)):
                 allpts.append((x+sc['col_dx'][i][0], y+sc['col_dx'][i][1]))
     bb=_bbox(allpts); out=[]
     for fr in fractions:
-        fig,ax,phase=_setup_fig_simple(bb, params, "Empiler les rectangles unité → la colonne 1 × aire")
+        fig,ax,phase=_setup_fig_simple(bb, params, "Empilement → colonne de largeur 1", show_ruler=True)
         T=fr*total
         if T<T0: tr=[sc['tray_dx'][i] for i in range(n)]
         elif T>=T1: tr=[sc['col_dx'][i] for i in range(n)]
@@ -1309,11 +1306,10 @@ def _fusion_frame(sc, ts, T):
 
 def _fusion_setup(sc, params):
     H=sc['H']; bb=(-1.85,-0.25,1.85,H+0.25)
-    fig,ax,phase=_setup_fig_simple(bb, params, "Fusion des deux découpages (rectangle de largeur 1)",
-                                   mx=0.7, my_top=1.4, my_bot=2.0, show_ruler=False)
+    fig,ax,phase=_setup_fig_simple(bb, params, "Superposition des deux découpages — raffinement commun",
+                                   mx=0.7, my_top=1.4, my_bot=1.0, show_ruler=True)
     msg=fig.text(0.5,0.092,"",ha='center',va='center',fontsize=12.5,color=INK,family='serif',
-                 linespacing=1.5, bbox=dict(boxstyle='round,pad=0.6',fc='#fbf7ec',ec='#ddd6c4',alpha=0.92))
-    _step_bar(fig, 5)
+                 linespacing=1.5, alpha=0.0)
     return fig,ax,phase,msg
 
 def _fusion_artists(ax, sc):
@@ -1466,11 +1462,10 @@ def _assemble_offset(ts, T):
 def render_intro(params):
     os.makedirs(params.out_dir, exist_ok=True)
     sc=build_intro_scene(params); ts,total=_intro_phases(params); TXT=_intro_text(sc)
-    fig,ax,phase=_setup_fig_simple(sc['bbox'], params, "Wallace–Bolyai–Gerwien : découper A, réassembler B",
-                                   mx=0.7, my_top=1.5, my_bot=1.9)
+    fig,ax,phase=_setup_fig_simple(sc['bbox'], params, "Wallace–Bolyai–Gerwien — deux polygones, même aire",
+                                   mx=0.7, my_top=1.5, my_bot=1.0, show_ruler=True)
     msg=fig.text(0.5,0.092,"",ha='center',va='center',fontsize=13.0,color=INK,family='serif',linespacing=1.5,
-                 bbox=dict(boxstyle='round,pad=0.6',fc='#fbf7ec',ec='#ddd6c4',alpha=0.92))
-    _step_bar(fig, 2)
+                 alpha=0.0)
     cA=PALETTE_A[2]; cB=PALETTE_B[0]
     fillA=MPLPoly(sc['A'],closed=True,facecolor=cA,edgecolor=INK,lw=1.6); ax.add_patch(fillA)
     fillB=MPLPoly(sc['B'],closed=True,facecolor=cB,edgecolor=INK,lw=1.6); ax.add_patch(fillB)
@@ -1619,9 +1614,8 @@ def render_prologue(params):
     total = t
     bbox = (-3.4,-3.1,3.4,3.1)
     fig,ax,phase = _setup_fig_simple(bbox, params,
-        "Le sens facile : réarranger des pièces ne change pas l'aire",
+        "Réarranger des pièces ne change pas l'aire",
         mx=0.2, my_top=0.6, my_bot=0.6)
-    _step_bar(fig, 1)
     patches = [MPLPoly([(0,0)],closed=True,facecolor=cols[i],edgecolor=INK,lw=1.6)
                for i in range(6)]
     for p in patches: ax.add_patch(p)
@@ -1682,7 +1676,7 @@ def render_threetoone(params):
     fig,ax,phase=_setup_fig_simple(bbox, params, "Un cas qui demande une étape de plus : 3 → 1",
                                    mx=0.2, my_top=0.6, my_bot=0.6)
     msg=fig.text(0.5,0.075,"",ha='center',va='center',fontsize=12.5,color=INK,family='serif',linespacing=1.5,
-                 bbox=dict(boxstyle='round,pad=0.6',fc='#fbf7ec',ec='#ddd6c4',alpha=0.92))
+                 alpha=0.0)
     cells=[MPLPoly([(0,0)],closed=True,facecolor=cols[i],edgecolor=INK,lw=1.6) for i in range(3)]
     for c in cells: ax.add_patch(c)
     nums=[ax.text(0,0,str(i+1),ha='center',va='center',fontsize=13,color=INK,family='serif') for i in range(3)]
@@ -1732,10 +1726,10 @@ def dump_intro_keyframes(params, fractions=(0.05,0.22,0.42,0.62,0.82,0.99)):
     sc=build_intro_scene(params); ts,total=_intro_phases(params); TXT=_intro_text(sc)
     out=[]
     for fr in fractions:
-        fig,ax,phase=_setup_fig_simple(sc['bbox'], params, "Wallace–Bolyai–Gerwien : découper A, réassembler B",
+        fig,ax,phase=_setup_fig_simple(sc['bbox'], params, "Wallace–Bolyai–Gerwien — deux polygones, même aire",
                                        mx=0.7, my_top=1.5, my_bot=1.9)
         msg=fig.text(0.5,0.075,"",ha='center',va='center',fontsize=13.0,color=INK,family='serif',linespacing=1.5,
-                     bbox=dict(boxstyle='round,pad=0.6',fc='#fbf7ec',ec='#ddd6c4',alpha=0.92))
+                     alpha=0.0)
         T=fr*total; cur=ts[-1][0]
         for nm,t0,du in ts:
             if T<t0+du: cur=nm; break

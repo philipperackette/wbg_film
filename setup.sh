@@ -38,7 +38,7 @@ assert "Marque de coupe PERSISTANTE" in src_draw, "REGRESSION: marque de coupe p
 assert "recolor" in src_fus,                      "REGRESSION: recoloriage A->B absent (fusion)"
 assert "interp_pose(ta, _align_tri(ta, tb), f)" in src_pro, "REGRESSION: prologue sans alignement <=60deg (retournement possible)"
 assert "zigzag" in inspect.getsource(W._prologue_arrangements).lower(), "REGRESSION: prologue pas en triangles equilateraux (hexagone/zigzag)"
-assert "_step_bar" in src_pro, "REGRESSION: indicateur d'etape minimaliste absent"
+assert "show_ruler=True" in inspect.getsource(W.render_method), "REGRESSION: etalon echelle absent"
 assert '"BA"' in src_scene,                       "REGRESSION: sens symetrique B->A absent"
 assert "_mover_groups" in inspect.getsource(W._method_timeline), "REGRESSION: dissection pas groupee par transformation"
 assert '"∪"' in inspect.getsource(W._fusion_artists), "REGRESSION: union ∪ absente (fusion)"
