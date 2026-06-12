@@ -943,24 +943,28 @@ def _vignette_for(o):
 
 
 def _all_method_tris():
-    """Triangles de A (le plus gras detaille en 1er) puis de B (idem).
-    B T2 (idx=2, h~0.56 -> 2/3) est exclu : il est present dans le clip 2sur3.
-    L'ordre A-avant-B garantit que build_all peut inserer colonneA et colonneB
-    avec un simple split sur nA."""
+    """Triangles de A puis de B, du plus simple au plus complexe (nb pièces croissant).
+    Le triangle détaillé (le plus gras) est toujours présenté EN DERNIER pour chaque figure,
+    après les triangles rapides — progression pédagogique simple → complexe.
+    B T2 (idx=2, h~0.56 -> 2/3, 13 pièces) est exclu : clip 2sur3 séparé.
+    L'ordre A-avant-B garantit que build_all peut insérer colonneA/colonneB."""
     from wbg_core import ear_clip
+    import wbg_pipeline as _PL
     result = []
     for poly, pal, tag in [(POLY_A, PALETTE_A, 'A'), (POLY_B, PALETTE_B, 'B')]:
         tris = [list(t) for t in ear_clip(list(poly))]
         fat = max(range(len(tris)), key=lambda k: _minang_tri(tris[k]))
-        ordered = [tris[fat]] + [t for k, t in enumerate(tris) if k != fat]
-        orig_idx = [fat] + [k for k in range(len(tris)) if k != fat]
-        for pos, (t, oi) in enumerate(zip(ordered, orig_idx)):
-            # B T2 est reserve pour le clip 2/3 detaille — ne pas l'inclure ici
-            if tag == 'B' and oi == 2:
-                continue
+        # triangles rapides (non-détaillés) : triés par nb de pièces croissant
+        others = [(k, tris[k]) for k in range(len(tris))
+                  if k != fat and not (tag == 'B' and k == 2)]
+        others.sort(key=lambda kt: len(_PL.dissect_triangle(
+            list(kt[1]), pal[0], kt[0], step0=1, max_den=2)['pieces']))
+        # ordre final : simples d'abord, détaillé en dernier
+        ordered = others + [(fat, tris[fat])]
+        for pos, (oi, t) in enumerate(ordered):
             result.append(dict(tri=_reorient_horizontal(t), color=pal[oi % len(pal)],
                                tag=tag, idx=oi, ntag=len(tris),
-                               ang=_minang_tri(t), detailed=(pos == 0)))
+                               ang=_minang_tri(t), detailed=(pos == len(ordered) - 1)))
     return result
 
 
