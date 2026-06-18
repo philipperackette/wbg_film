@@ -153,7 +153,7 @@ def build_master(out_dir, basename):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out-dir", default="/mnt/user-data/outputs/anim_dissection")
+    ap.add_argument("--out-dir", default="out")
     ap.add_argument("--fps", type=int, default=30)
     a = ap.parse_args()
     params = W.AnimParams(out_dir=a.out_dir, fps=a.fps, make_gif=False)

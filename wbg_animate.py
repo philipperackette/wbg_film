@@ -134,7 +134,7 @@ class AnimParams:
     cut_dur:     float = 0.7      # durée du « flash » de coupe (scène méthode)
     read_scale:  float = 0.90     # facteur global sur les pauses de lecture (scène méthode)
     # sortie
-    out_dir: str = "/mnt/user-data/outputs/anim_dissection"
+    out_dir: str = "out"
     basename: str = "wbg_equidecoupage"
     make_mp4: bool = True
     make_gif: bool = True
