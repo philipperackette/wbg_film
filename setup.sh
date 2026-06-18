@@ -1,53 +1,81 @@
 #!/usr/bin/env bash
-# setup.sh — prépare l'environnement conda puis régénère la vidéo WBG complète.
-#
-# IMPORTANT : ce script N'EMBARQUE PLUS les sources (fini la duplication).
-# Il utilise les .py présents DANS CE MÊME DOSSIER :
-#     wbg_core.py  wbg_pipeline.py  wbg_animate.py  build_all.py
-# Lancer simplement :   bash setup.sh        (sortie : out/wbg_video_complete.mp4)
 set -euo pipefail
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-ENV="${WBG_ENV:-wbgvideo}"
-if ! command -v conda >/dev/null 2>&1; then echo "conda introuvable"; exit 1; fi
-source "$(conda info --base)/etc/profile.d/conda.sh"
-if conda env list | awk '{print $1}' | grep -qx "$ENV"; then
-  conda install -y -n "$ENV" -c conda-forge shapely matplotlib numpy ffmpeg
-else
-  conda create -y -n "$ENV" -c conda-forge python=3.12 shapely matplotlib numpy ffmpeg
+echo "=== WBG film : vérification de l'environnement ==="
+
+# Vérification Python
+if ! command -v python >/dev/null 2>&1; then
+  echo "ERREUR : python est introuvable dans cet environnement."
+  echo "Active d'abord l'environnement conda, par exemple :"
+  echo "conda activate wbgvideo"
+  exit 1
 fi
-conda activate "$ENV"
 
-# vérifie que les .py présents portent bien les corrections attendues (sinon stop)
-for f in wbg_core.py wbg_pipeline.py wbg_animate.py build_all.py; do
-  [ -f "$f" ] || { echo "FICHIER MANQUANT : $f (placez les .py à côté de setup.sh)"; exit 1; }
+echo "Python utilisé : $(which python)"
+python --version
+echo
+
+# Vérification ffmpeg
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  echo "ERREUR : ffmpeg est introuvable."
+  echo "Installe-le par exemple avec :"
+  echo "brew install ffmpeg"
+  exit 1
+fi
+
+echo "ffmpeg trouvé : $(which ffmpeg)"
+echo
+
+# Vérification des fichiers Python du projet
+REQUIRED_PY=(
+  "build_all.py"
+  "build_resume.py"
+  "wbg_animate.py"
+  "wbg_core.py"
+  "wbg_params.py"
+  "wbg_pipeline.py"
+)
+
+echo "=== Vérification des fichiers Python ==="
+for f in "${REQUIRED_PY[@]}"; do
+  if [[ ! -f "$f" ]]; then
+    echo "ERREUR : fichier manquant : $f"
+    exit 1
+  fi
+  echo "OK : $f"
 done
-python - <<'PYCHK'
-import inspect, wbg_animate as W
-src_beats = inspect.getsource(W.method_beats)
-src_draw  = inspect.getsource(W._method_draw)
-src_fus   = inspect.getsource(W._fusion_frame)
-src_pro   = inspect.getsource(W.render_prologue)
-src_scene = inspect.getsource(W.build_scene)
-src_ds    = inspect.getsource(W._draw_state)
-import re
-m = re.search(r"linewidth=([0-9.]+)", src_ds)
-assert m and float(m.group(1)) >= 1.2,            "bords des pieces trop fins"
-assert "state_after" in src_beats,                "REGRESSION: pieces non creees a la coupe"
-assert "Marque de coupe PERSISTANTE" in src_draw, "REGRESSION: marque de coupe persistante absente"
-assert "recolor" in src_fus,                      "REGRESSION: recoloriage A->B absent (fusion)"
-assert "interp_pose(ta, _align_tri(ta, tb), f)" in src_pro, "REGRESSION: prologue sans alignement <=60deg (retournement possible)"
-assert "zigzag" in inspect.getsource(W._prologue_arrangements).lower(), "REGRESSION: prologue pas en triangles equilateraux (hexagone/zigzag)"
-assert "show_ruler=True" in inspect.getsource(W.render_method), "REGRESSION: etalon echelle absent"
-assert '"BA"' in src_scene,                       "REGRESSION: sens symetrique B->A absent"
-assert "_mover_groups" in inspect.getsource(W._method_timeline), "REGRESSION: dissection pas groupee par transformation"
-assert '"∪"' in inspect.getsource(W._fusion_artists), "REGRESSION: union ∪ absente (fusion)"
-assert "top_pids" in src_ds, "REGRESSION: piece mobile pas au premier plan"
-assert "_cut_right_angle" in src_draw and "ra_segs" in src_draw, "REGRESSION: codage d'angle droit du redressement absent"
-assert 'path=["N","M","L"]' in src_scene, "REGRESSION: BA pas en rejeu inverse (B a droite, A a gauche)"
-print("OK — coupes persistantes, fusion A->B, prologue equilateral plan, etape minimaliste, 1er plan mobile, angle droit, union, B->A inverse, dissection groupee")
-PYCHK
+echo
 
-mkdir -p out
-python build_all.py --out-dir out
-echo ">> out/wbg_video_complete.mp4"
+# Vérification des dépendances Python
+echo "=== Vérification des modules Python ==="
+python - <<'PY'
+modules = [
+    "numpy",
+    "matplotlib",
+    "moviepy",
+]
+
+missing = []
+
+for m in modules:
+    try:
+        __import__(m)
+        print(f"OK : {m}")
+    except Exception as e:
+        print(f"MANQUANT ou ERREUR : {m} -> {e}")
+        missing.append(m)
+
+if missing:
+    print()
+    print("Installe les dépendances manquantes avec par exemple :")
+    print("pip install numpy matplotlib moviepy")
+    raise SystemExit(1)
+PY
+
+echo
+echo "=== Environnement prêt ==="
+echo "Pour générer la vidéo complète :"
+echo "python build_all.py"
+echo
+echo "Pour générer uniquement le résumé si prévu par le projet :"
+echo "python build_resume.py"

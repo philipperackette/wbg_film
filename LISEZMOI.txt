@@ -1,20 +1,92 @@
-WBG — film d'équidécoupage (Wallace–Bolyai–Gerwien)
-====================================================
+WBG FILM — LISEZMOI
 
-Lancer :   bash setup.sh        (sortie : out/wbg_video_complete.mp4)
-setup.sh crée l'env conda, vérifie que les corrections sont présentes,
-puis appelle build_all.py. Les 6 .py doivent rester dans ce dossier.
+Dossier de projet :
+/Users/professeurrackette/Desktop/wbg_film
 
-Modifs de cette livraison (6 points) :
-  1. Prologue = 6 triangles ÉQUILATÉRAUX : parallélogramme → hexagone → étoile.
-     Mouvements plans, rotations ≤ 60° (symétrie d'ordre 3) — aucun retournement.
-  2. Bandeau du bas minimaliste : indicateur « étape k/6 · … » dans chaque scène ;
-     les longues légendes n'apparaissent plus que sur les écrans d'explication.
-  3. Le morceau qui bouge passe TOUJOURS au premier plan (z-order).
-  4. Codage d'angle droit au coin du rectangle obtenu après redressement
-     (affiché juste après la coupe, retiré ensuite).
-  5. Fusion : symbole « ∪ » (réunion) au lieu de « + ».
-  6. Réassemblage B→A : B à droite, A à gauche — rejeu à l'envers du sens A→B.
+Ce dossier contient les sources Python, la documentation de narration,
+les fichiers de paramétrage et, si présent, le dossier out/ contenant les
+vidéos générées.
 
-Fichiers modifiés p/r à la version précédente : wbg_animate.py, setup.sh.
-(wbg_core.py, wbg_pipeline.py, build_all.py, build_resume.py : inchangés.)
+FICHIERS PYTHON À CONSERVER DANS CE DOSSIER
+
+Les 6 fichiers Python principaux doivent rester ensemble :
+
+- build_all.py
+- build_resume.py
+- wbg_animate.py
+- wbg_core.py
+- wbg_params.py
+- wbg_pipeline.py
+
+Le fichier setup.sh permet de vérifier rapidement l'environnement.
+
+ENVIRONNEMENT
+
+L'environnement conda attendu est par exemple :
+
+    conda activate wbgvideo
+
+Vérification :
+
+    ./setup.sh
+
+Génération de la vidéo complète :
+
+    python build_all.py
+
+Génération du résumé, si utilisé :
+
+    python build_resume.py
+
+SORTIES VIDÉO
+
+Les vidéos générées sont placées dans le dossier :
+
+    out/
+
+Le master principal attendu est :
+
+    out/wbg_video_complete.mp4
+
+Durée actuellement détectée du master, si présent lors de cette mise à jour :
+
+    5 min 47
+
+POINT IMPORTANT SUR LE PROLOGUE
+
+Le prologue part de 6 triangles équilatéraux congruents.
+Certaines zones sont ensuite subdivisées, ce qui produit 9 pièces visibles
+numérotées 1 à 9. Il n'y a donc pas contradiction entre :
+
+- la structure géométrique de départ : 6 triangles équilatéraux ;
+- le découpage final visible : 9 pièces colorées.
+
+CHECKSUMS
+
+Le fichier MD5SUMS.txt est régénéré par le script mise_au_carre_wbg.sh.
+Après modification des sources ou de la documentation, il faut le régénérer.
+
+ARCHIVE DE LIVRAISON
+
+Pour produire une archive propre sans fichiers temporaires :
+
+    zip -r ../wbg_film_clean.zip . \
+      -x "__pycache__/*" \
+      -x ".git/*" \
+      -x "__MACOSX/*" \
+      -x "*.DS_Store"
+
+Si l'on veut exclure les vidéos générées, ajouter aussi :
+
+      -x "out/*"
+
+NOTES
+
+Les fichiers suivants sont volontairement exclus d'une archive propre :
+
+- __pycache__/
+- .DS_Store
+- __MACOSX/
+- .git/
+
+Le dossier out/ peut être conservé si l'archive doit contenir les rendus vidéo.

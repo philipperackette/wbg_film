@@ -42,7 +42,7 @@ END_HOLDS = {
 # - laisser la seconde chaîne vide quand on ne veut qu'une seule ligne visible.
 SUBTITLE_TEXTS = {
     "prologue": {
-        "vrac": "Six pièces identiques",
+        "vrac": "Une collection de pièces polygonales",
         "mv0": "Elles s’assemblent…",
         "h0": "…en un hexagone",
         "m01": "On les déplace…",

@@ -547,7 +547,7 @@ def method_beats(md, params, detailed=True, label="", intro=None):
         intro_msg=((label+" : ") if label else "")+"même procédé, sans déformation."
     beats.append({'k':'show','state':{0:(pts,color)},
         'title':intro_title,'msg':intro_msg,
-        'dims':[{'kind':'hdim','label':f"base ≈ {_fr(blen)}"}], 'hold':H(3.4 if detailed else 2.6)})
+        'dims':[{'kind':'hdim','label':f"base ≈ {_fr(blen)}"}], 'hold':H(4.2 if detailed else 3.0)})
     state={md['trap_pid']:(md['trapV'],color), md['ndc_pid']:(md['amnV'],color)}
     beats.append({'k':'cut','state':{0:(pts,color)},'state_after':_snap(state),'segs':[md['MN']],
         'title':_cfg_method_pair(label, "midline_cut", "Étape 1 — ligne des milieux", "On joint les milieux des deux côtés issus du sommet, puis on coupe.")[0],
@@ -559,7 +559,7 @@ def method_beats(md, params, detailed=True, label="", intro=None):
         'movers':[(md['ndc_pid'], md['amnV'], md['ndcV'], rot_iso)],
         'title':_cfg_method_pair(label, "midline_move", "Demi-tour → parallélogramme", "Le petit triangle pivote de 180° : on obtient un parallélogramme de même aire.")[0],
         'msg':_cfg_method_pair(label, "midline_move", "Demi-tour → parallélogramme", "Le petit triangle pivote de 180° : on obtient un parallélogramme de même aire.")[1],
-        'dims':[{'kind':'vleft','label':f"h ≈ {_fr(h)}"}], 'hold':H(3.2)})
+        'dims':[{'kind':'vleft','label':f"h ≈ {_fr(h)}"}], 'hold':H(4.0)})
     state[md['ndc_pid']]=(_ndcV_landed, color)   # use actual landing position, no teleport
     ev=md['rest']; i=0; last='shear'
     cut_script={
@@ -640,7 +640,7 @@ def method_beats(md, params, detailed=True, label="", intro=None):
                 dims=[{'kind':'vleft','label':f"h ≈ {_fr(h)}"}] if last=='shear' else []
                 beats.append({'k':'show','state':_snap(state),'title':et,'msg':em,'dims':dims,'hold':H(5.2)})
             t,m=cut_script.get(last,("Découpe",""))
-            chold={'shear':2.6,'q-cut':2.2,'p-cut':2.0}.get(last,2.0)
+            chold={'shear':4.0,'q-cut':3.0,'p-cut':2.6}.get(last,2.0)
             cut_beat={'k':'cut','state':_snap(state),
                 'segs':[g.get('segment') for g in grp if g.get('segment')],
                 'title':t,'msg':m,'hold':H(chold)}
@@ -659,7 +659,7 @@ def method_beats(md, params, detailed=True, label="", intro=None):
             movers=[(me['id'], me['before'], me['after'], me['iso']) for me in grp]
             t,m,lbl=move_script.get(last,("Translation","",None))
             labels=[{'anchor':'right','text':lbl}] if lbl else []
-            mhold={'shear':4.2,'q-cut':3.6,'p-cut':2.6}.get(last,2.6)
+            mhold={'shear':5.6,'q-cut':4.6,'p-cut':3.4}.get(last,2.6)
             slow=({'shear':2.2}.get(last,1.0) if detailed else 1.0)
             beats.append({'k':'move','state':_snap(state),'movers':movers,
                 'title':t,'msg':m,'labels':labels,'hold':H(mhold),'slowmo':slow})
@@ -1700,6 +1700,58 @@ def _prologue_vrac():
         result.append(translated(rotated(base, angle), dx, dy))
     return result
 
+
+def _prologue_cuts():
+    """Découpe CERTAINES des 6 pièces de base en sous-pièces, exprimées en
+    coordonnées barycentriques (w0,w1,w2) relatives aux 3 sommets du triangle
+    porteur. But pédagogique : montrer que les pièces n'ont PAS besoin d'être
+    identiques pour pouvoir être réarrangées à aire constante.
+
+    Comme chaque jeu de sous-pièces pave EXACTEMENT son triangle porteur, les
+    trois assemblages (hexagone, zigzag, parallélogramme) restent strictement
+    inchangés — on ne fait qu'ajouter des traits de coupe internes.
+
+    Variété obtenue : 3 triangles entiers, 4 triangles rectangles (deux médianes),
+    1 petit triangle + 1 trapèze (ligne des milieux) → 9 pièces, 4 formes."""
+    A=(1.0,0.0,0.0); B=(0.0,1.0,0.0); C=(0.0,0.0,1.0)
+    Mab=(0.5,0.5,0.0); Mac=(0.5,0.0,0.5); Mbc=(0.0,0.5,0.5)
+    whole     = [[A,B,C]]
+    median_A  = [[A,B,Mbc],[A,Mbc,C]]              # médiane du sommet A : 2 triangles rectangles
+    midline_A = [[A,Mab,Mac],[Mab,B,C,Mac]]        # ligne des milieux : petit triangle + trapèze
+    median_B  = [[B,C,Mac],[B,Mac,A]]              # médiane du sommet B : 2 triangles rectangles
+    return [whole, whole, whole, median_A, midline_A, median_B]
+
+
+def _bary_xy(tri, weights):
+    """Mappe une liste de poids barycentriques sur le triangle `tri` (3 sommets xy).
+    Affine-invariant : reste cohérent pour n'importe quelle pose rigide ou
+    interpolation du triangle porteur."""
+    (x0,y0),(x1,y1),(x2,y2)=tri
+    return [(w0*x0+w1*x1+w2*x2, w0*y0+w1*y1+w2*y2) for (w0,w1,w2) in weights]
+
+
+def _prologue_scatter(target_polys):
+    """Donne à CHAQUE sous-pièce sa propre pose éparpillée : au tout début (vrac)
+    les 9 pièces sont nettement SÉPARÉES, puis chacune rejoint sa place dans
+    l'hexagone. Chaque pose de départ est une image RIGIDE (rotation + translation,
+    sans retournement) de la pose-cible dans l'hexagone : interp_pose donne donc un
+    rapprochement propre et aucune pièce ne se retourne. Positions fixes (seed)."""
+    import random
+    rng = random.Random(11)
+    # grille 3×3 couvrant la zone visible (titre en haut, étalon en bas)
+    cells = [(-2.30, 1.85), (0.00, 2.00), (2.35, 1.75),      # 1 2 3
+             (-2.45, 0.10), (-0.05, 0.05), (2.45, 0.10),     # 4 5 6
+             (-2.30,-1.80), (0.05,-1.95), (2.40,-1.75)]      # 7 8 9
+    out = []
+    for poly, (cx, cy) in zip(target_polys, cells):
+        c = _centroid(poly)
+        ang = rng.uniform(-2.8, 2.8); ca, sa = math.cos(ang), math.sin(ang)
+        jx = cx + rng.uniform(-0.25, 0.25); jy = cy + rng.uniform(-0.20, 0.20)
+        out.append([(ca*(x-c[0]) - sa*(y-c[1]) + jx,
+                     sa*(x-c[0]) + ca*(y-c[1]) + jy) for (x, y) in poly])
+    return out
+
+
 def render_prologue(params):
     """Sens facile : on réarrange les MÊMES 6 triangles équilatéraux en plusieurs figures ;
     l'aire ne change pas. Mouvements purement plans (≤60°), sans retournement."""
@@ -1707,7 +1759,27 @@ def render_prologue(params):
     vrac = _prologue_vrac()                    # positions éparpillées (départ)
     arrs_base = _prologue_arrangements()       # [hexagone, zigzag/éclair, parallélogramme]
     arrs = [vrac] + arrs_base                  # index : 0=vrac, 1=hexagone, 2=zigzag, 3=para
-    cols = [PALETTE_A[2], PALETTE_B[0], PALETTE_A[1], PALETTE_B[2], PALETTE_A[4], PALETTE_B[1]]
+    # ── Découpe de certaines pièces : les pièces n'ont PAS besoin d'être identiques ──
+    cuts = _prologue_cuts()
+    subpieces = [(i, poly) for i, subs in enumerate(cuts) for poly in subs]   # 9 sous-pièces
+    nsub = len(subpieces)
+    # Couleurs : sous-pièces voisines d'un même triangle nettement contrastées
+    # (chaud/froid) pour que les traits de coupe se lisent comme de vraies pièces.
+    sub_cols = [PALETTE_A[2], PALETTE_B[0], PALETTE_A[4],     # 3 triangles entiers
+                PALETTE_B[2], PALETTE_A[1],                   # 2 rectangles (médiane)
+                PALETTE_B[4], PALETTE_A[0],                   # petit triangle + trapèze
+                PALETTE_B[1], PALETTE_A[3]]                   # 2 rectangles (médiane)
+    # Poses alignées PROPAGÉES : on fixe l'étiquetage des sommets le long de la
+    # chaîne vrac→hexagone→zigzag→parallélogramme pour que les sous-pièces ne
+    # sautent jamais d'un sommet à l'autre aux transitions (rotation ≤ 60° conservée).
+    posed = [[list(arrs[0][i]) for i in range(6)]]
+    for ai in range(1, len(arrs)):
+        posed.append([_align_tri(posed[ai-1][i], arrs[ai][i]) for i in range(6)])
+    # Poses-cibles des sous-pièces DANS L'HEXAGONE (arrangement 1) ; poses de départ
+    # ÉPARPILLÉES : au tout début les 9 pièces sont SÉPARÉES puis s'assemblent.
+    # (Les arrangements ≥ 1 gardent les sous-pièces solidaires de leur triangle.)
+    target_hex = [_bary_xy(posed[1][i], bary) for (i, bary) in subpieces]
+    vrac_sub = _prologue_scatter(target_hex)
     rs = getattr(params, 'read_scale', 1.0)
     seq = [('vrac',1.6*rs,0,0),                 # pièces en vrac
            ('mv0',2.1*rs,0,1),                  # vrac → hexagone
@@ -1720,15 +1792,16 @@ def render_prologue(params):
     fig,ax,phase = _setup_fig_simple(bbox, params,
         "Réarranger des pièces ne change pas l'aire",
         mx=0.2, my_top=0.6, my_bot=0.6)
-    patches = [MPLPoly([(0,0)],closed=True,facecolor=cols[i],edgecolor=INK,lw=1.6)
-               for i in range(6)]
+    patches = [MPLPoly([(0,0)],closed=True,facecolor=sub_cols[s % len(sub_cols)],
+                       edgecolor=INK,lw=1.5,joinstyle='round')
+               for s in range(nsub)]
     for p in patches: ax.add_patch(p)
-    nums = [ax.text(0,0,str(i+1),ha='center',va='center',fontsize=10,color=INK,family='serif')
-            for i in range(6)]
-    areatag = ax.text(0,-2.95,"aire = 6 triangles — constante",ha='center',va='top',
+    nums = [ax.text(0,0,str(s+1),ha='center',va='center',fontsize=8.5,color=INK,family='serif')
+            for s in range(nsub)]
+    areatag = ax.text(0,-2.95,"même aire — quel que soit le découpage",ha='center',va='top',
                       fontsize=12.5,color=SUBTITLE_BROWN,family='serif',weight='bold')
     TITLE = _cfg_merge_strings("prologue", {
-        'vrac': "Six pièces identiques",
+        'vrac': "Pas besoin que les pièces soient identiques",
         'mv0': "Elles s'assemblent…",
         'h0': "Un hexagone", 'm01': "On les déplace…", 'h1': "Un zigzag plein, sans trou",
         'm12': "…encore une autre", 'h2': "Un parallélogramme plein",
@@ -1746,13 +1819,19 @@ def render_prologue(params):
         fade = 1.0
         if nm == 'cv':
             t0 = _t0c(ts,'cv'); fade = max(0.25, 1.0-0.75*_smooth(min(1.0,(T-t0)/2.0)))
-        for i in range(6):
-            ta = arrs[a][i]; tb = arrs[b][i]
-            # rotation ≤ 60° (via _align_tri) + translation : mouvement plan, pas de retournement
-            interp = interp_pose(ta, _align_tri(ta, tb), f) if a != b else list(ta)
-            patches[i].set_xy(interp); patches[i].set_alpha(fade)
-            cx = sum(x for x,y in interp)/3; cy = sum(y for x,y in interp)/3
-            nums[i].set_position((cx,cy)); nums[i].set_alpha(fade)
+        # Segment vrac→hexagone (a==0) : chaque sous-pièce a SA propre pose et
+        # converge depuis sa position éparpillée → les 9 pièces partent séparées.
+        # Ensuite (a≥1) : sous-pièces solidaires du triangle porteur (barycentrique).
+        if a == 0:
+            sub_verts = [interp_pose(vrac_sub[s], target_hex[s], f) for s in range(nsub)]
+        else:
+            tri_now = [interp_pose(posed[a][i], posed[b][i], f) if a != b else list(posed[a][i])
+                       for i in range(6)]
+            sub_verts = [_bary_xy(tri_now[i], bary) for (i, bary) in subpieces]
+        for s, verts in enumerate(sub_verts):
+            patches[s].set_xy(verts); patches[s].set_alpha(fade)
+            cx = sum(x for x,y in verts)/len(verts); cy = sum(y for x,y in verts)/len(verts)
+            nums[s].set_position((cx,cy)); nums[s].set_alpha(fade)
         areatag.set_alpha(0.0 if nm in ('vrac','mv0') else fade)
         phase.set_text(TITLE[nm])
         return patches+nums+[areatag,phase]

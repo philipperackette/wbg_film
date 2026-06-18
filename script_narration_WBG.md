@@ -1,3 +1,59 @@
+# Script de narration — WBG film
+
+> Documentation remise d'équerre automatiquement le 2026-06-18.
+>
+> Durée du master détectée, si le fichier `out/wbg_video_complete.mp4` existe :
+> **5 min 47**.
+>
+> Remarque de cohérence :
+> le prologue part de **6 triangles équilatéraux congruents**.
+> Certaines zones sont subdivisées pour produire **9 pièces visibles**
+> numérotées 1 à 9. Les pièces visibles ne sont donc pas nécessairement
+> toutes des triangles équilatéraux entiers.
+
+## Table de cohérence technique
+
+Les scènes actuellement attendues par le montage sont les suivantes.
+
+| Partie | Commentaire documentaire |
+|---|---|
+| Prologue | 6 triangles équilatéraux de base, subdivisés en 9 pièces visibles |
+| Introduction | Présentation du but du film |
+| Méthode A | Les triangles effectivement utilisés dépendent de l'ordre défini dans `build_all.py` |
+| Colonne A | Assemblage / lecture de la colonne A |
+| Méthode B | Les triangles effectivement utilisés dépendent de l'ordre défini dans `build_all.py` |
+| Cas 2/3 | Dans l'état vérifié, le cas 2/3 correspond au triangle 3 de B |
+| Colonne B | Assemblage / lecture de la colonne B |
+| Fusion | Fusion des constructions |
+| Réassemblage A→B | Passage de A vers B |
+| Réassemblage B→A | Passage de B vers A |
+| Fin | Conclusion |
+
+## Timecodes indicatifs vérifiés
+
+Ces timecodes sont indicatifs : ils doivent être régénérés si les durées des clips
+ou les fondus changent dans le code.
+
+| Scène | Début indicatif |
+|---|---:|
+| Prologue | 00:00 |
+| Intro | 00:14 |
+| Méthode A, clip 0 | 00:33 |
+| Méthode A, clip 1 | 00:56 |
+| Méthode A, clip 2 | 01:18 |
+| Colonne A | 02:00 |
+| Méthode B, clip 3 | 02:06 |
+| Méthode B, clip 4 | 02:28 |
+| Méthode B, clip 5 | 02:52 |
+| Méthode 2/3 | 03:44 |
+| Colonne B | 04:42 |
+| Fusion | 04:48 |
+| Réassemblage A→B | 05:15 |
+| Réassemblage B→A | 05:31 |
+| Fin approximative | 5 min 47 |
+
+---
+
 # Script de narration — Théorème de Wallace–Bolyai–Gerwien
 ### Vidéo : `wbg_video_complete.mp4` — durée ~5 min 23
 
@@ -12,23 +68,27 @@
 
 ## 00:00 — PROLOGUE : le sens facile
 
-*Six triangles équilatéraux colorés, numérotés 1 à 6, forment un hexagone régulier.*
+*Neuf pièces colorées, numérotées 1 à 9, éparpillées et bien séparées. Elles sont visiblement de formes différentes : des triangles de plusieurs tailles, et même un quadrilatère.*
 
-Voici six pièces identiques — six triangles équilatéraux. Assemblées, elles forment un **hexagone**.
+Voici neuf pièces. Et tout de suite, l'essentiel : elles ne sont **pas toutes identiques**. Des triangles de tailles différentes, et même un quadrilatère. Ce qui va compter, ce n'est pas leur forme — c'est leur **aire totale**.
 
-*Les pièces glissent et pivotent — sans jamais se retourner — pour former une silhouette en zigzag, pleine, sans trou.*
+*Les pièces se rapprochent et s'emboîtent exactement pour former un hexagone régulier, plein, sans trou ni chevauchement.*
 
-On les déplace : chacune tourne d'un sixième de tour au plus, et glisse à sa place. Mêmes six pièces, mais cette fois un **zigzag**.
+Assemblées, ces pièces pourtant différentes forment un **hexagone**.
 
-*Les six triangles quittent le zigzag et se réassemblent en un parallélogramme plein.*
+*Les pièces glissent et pivotent dans le plan — sans jamais se retourner — pour former une silhouette en zigzag, pleine, sans trou.*
 
-Encore une forme différente — un **parallélogramme**. ⏸
+On les déplace : chaque pièce glisse et tourne dans le plan, sans jamais se retourner. Mêmes pièces, autre forme — un **zigzag**.
 
-*L'aire affichée, « 6 triangles — constante », ne bouge jamais.*
+*Les pièces quittent le zigzag et se réassemblent en un parallélogramme plein.*
 
-C'est évident : réarranger des pièces ne change pas l'aire. Elle vaut toujours la somme des aires des pièces, quelle que soit la forme obtenue.
+Et encore une — un **parallélogramme**. ⏸
 
-Mais la question réciproque est bien plus difficile. On se donne **deux polygones de même aire** — ils peuvent être complètement différents. Peut-on **toujours** découper l'un en morceaux pour reconstituer exactement l'autre ? C'est ça, le vrai problème.
+*Pendant tous ces réarrangements, le bandeau « même aire — quel que soit le découpage » reste affiché.*
+
+C'est évident : réarranger des pièces ne change pas l'aire. Elle vaut toujours la somme des aires des pièces — **quelles que soient leurs formes**, et quelle que soit la figure obtenue. Voilà pourquoi les pièces n'ont aucun besoin d'être identiques.
+
+Mais la question **réciproque** est bien plus difficile. On se donne **deux polygones de même aire** — ils peuvent être complètement différents. Peut-on **toujours** découper l'un en morceaux pour reconstituer exactement l'autre ? C'est ça, le vrai problème.
 
 ---
 
@@ -264,7 +324,7 @@ Et dans l'autre sens : les pièces quittent B, à droite, traversent le rectangl
 
 | Timecode | Clip | Durée |
 |---|---|---|
-| 00:00 | Prologue (6 triangles équilatéraux : hexagone → zigzag plein → parallélogramme) | 16 s |
+| 00:00 | Prologue (9 pièces de formes variées, séparées au départ → hexagone → zigzag plein → parallélogramme) | 16 s |
 | 00:15 | Intro | 23 s |
 | 00:38 | Méthode A1 (détaillé, h=1) | 47 s |
 | 01:24 | Méthode A2 (rapide) | 17 s |
@@ -282,7 +342,7 @@ Et dans l'autre sens : les pièces quittent B, à droite, traversent le rectangl
 > Les timecodes sont indicatifs (≈ ±2 s) : le prologue dure désormais ~16 s, ce qui peut décaler légèrement la suite.
 
 **Points d'attention à l'oral :**
-- Le prologue utilise 6 triangles équilatéraux : hexagone plein, zigzag plein sans trou, puis parallélogramme plein ; tous les mouvements sont des rotations ≤ 60° dans le plan — **aucun retournement**, rien « en entourloupe ».
+- Le prologue part de **neuf pièces de formes différentes** (triangles de plusieurs tailles + un quadrilatère), volontairement **séparées** au départ ; elles s'assemblent en hexagone plein, puis se réarrangent en zigzag plein, puis en parallélogramme plein. Les réarrangements entre ces trois figures se font **sans aucun retournement** (mouvements plans). Objectif pédagogique : montrer que les pièces n'ont **pas besoin d'être identiques** — rien « en entourloupe ».
 - L'affichage du bas est minimal (indicateur « étape k/6 ») : c'est la **narration** qui porte tout le propos ; n'hésitez pas à développer.
 - Les triangles détaillés (A1, B1, B4) demandent le plus de narration ; laisser les silences ⏸ pour que les animations individuelles respirent.
 - Empilements/redressement : les pièces bougent par GROUPES (même transformation = même mouvement), et **le morceau qui bouge passe toujours au premier plan**. Laisser chaque bloc finir son glissement avant de parler du suivant.

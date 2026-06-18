@@ -1,6 +1,9 @@
-249408f76bce5caeb2a7bfb4ed1195cb  wbg_film/build_all.py
-a504c1b5f7416fa94a7918860ddefdc9  wbg_film/build_resume.py
-eaf9227dbb742c369de1e2774a1cd6a2  wbg_film/wbg_animate.py
-2dd6f06b67c9c8cfdb41ee1c547e3dea  wbg_film/wbg_core.py
-e9de328c3c6b3d78f01382d34e634332  wbg_film/wbg_pipeline.py
-e3cd9cafe8f9a4d5dda4668eaab74ce2  wbg_film/setup.sh
+e410467a2cba0e268708cc629ef5f552  build_all.py
+7d567d2285c98ee07b529b3e0adfe729  build_resume.py
+a9035e4ab613fdb0038bbcfacf53400f  wbg_animate.py
+2dd6f06b67c9c8cfdb41ee1c547e3dea  wbg_core.py
+eecd546ec1b27b02e85b21e0d781abe6  wbg_params.py
+e9de328c3c6b3d78f01382d34e634332  wbg_pipeline.py
+ff1eef2855498f364540e43997ed669f  setup.sh
+34d91f928de12e55ef6c38df6332f5ad  LISEZMOI.txt
+c12b0010e38e470dbab090cd64603aef  script_narration_WBG.md
